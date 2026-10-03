@@ -151,6 +151,8 @@ class _CoinsTab extends StatelessWidget {
               onBuy: () => StoreService.buy(context, Products.starter)),
           const SizedBox(height: 18),
         ],
+        _PiggyCard(amount: s.piggy),
+        const SizedBox(height: 18),
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
@@ -214,8 +216,11 @@ class _StarterCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                     decoration: BoxDecoration(
                         color: C.red, borderRadius: BorderRadius.circular(999)),
-                    child: const Text('فقط یک‌بار',
-                        style: TextStyle(
+                    child: Text(
+                        SaveData.i.starterOfferLeft != null
+                            ? 'فقط ${fa(SaveData.i.starterOfferLeft!.inHours)} ساعت مونده!'
+                            : 'فقط یک‌بار',
+                        style: const TextStyle(
                             color: C.white,
                             fontWeight: FontWeight.w900,
                             fontSize: 12)),
@@ -267,6 +272,68 @@ class _StarterCard extends StatelessWidget {
                   painter: _CharPreview(football, mood: Mood.happy, scale: 1.25)),
             ),
           ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Piggy bank: fills with 20% of every run's coins; break it to get them.
+class _PiggyCard extends StatelessWidget {
+  const _PiggyCard({required this.amount});
+  final int amount;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = amount >= SaveData.piggyMinToBreak;
+    return Panel(
+      radius: 24,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      gradient: const LinearGradient(colors: [Color(0xFFFFE3EC), Color(0xFFFFC9D9)]),
+      child: Row(children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(colors: [Color(0xFFFF8FB1), Color(0xFFE85C8A)]),
+          ),
+          child: const Icon(Icons.savings_rounded, color: C.white, size: 32),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('قلک', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: C.ink)),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: amount / SaveData.piggyMax,
+                minHeight: 10,
+                backgroundColor: const Color(0x55FFFFFF),
+                color: const Color(0xFFE85C8A),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+                ready
+                    ? '${fa(amount)} سکه منتظرته!'
+                    : '${fa(amount)} از ${fa(SaveData.piggyMinToBreak)} · با بازی کردن پر میشه',
+                style: kSmall.copyWith(fontSize: 11)),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        GameButton(
+          tone: Tone.purple,
+          height: 44,
+          radius: 14,
+          depth: 4,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          onTap: ready ? () => StoreService.buy(context, Products.piggy) : null,
+          child: FittedBox(
+            child: Text(ready ? Products.piggy.priceLabel : 'قفله',
+                style: const TextStyle(fontSize: 13)),
+          ),
         ),
       ]),
     );

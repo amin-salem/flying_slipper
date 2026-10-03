@@ -176,6 +176,10 @@ class GameWorld {
   /// The selected character's special power. Set before [reset].
   Ability ability = const Ability();
 
+  /// Extra coin multiplier from events (weekend double coins).
+  int eventCoinMul = 1;
+  int get coinValue => ability.coinMul * eventCoinMul;
+
   double get floorY => size.height * (landscape ? 0.8 : 0.70);
   double get kidX => size.width * (landscape ? 0.3 : 0.36);
 
@@ -983,7 +987,7 @@ class GameWorld {
     final kid = kidHitbox;
     coins.removeWhere((c) {
       if (kid.inflate(10).contains(Offset(c.x, c.y))) {
-        coinsThisRun += ability.coinMul;
+        coinsThisRun += coinValue;
         events.add(GameEvent.coin);
         _burst(c.x, c.y, 5, const Color(0xFFFFD34D), 1);
         return true;
@@ -1047,11 +1051,11 @@ class GameWorld {
 
   void _nearMiss(double x, double y) {
     nearMisses++;
-    final bonus = 3 * ability.coinMul;
+    final bonus = 3 * coinValue;
     coinsThisRun += bonus;
     _slowmo = 0.22;
     events.add(GameEvent.nearMiss);
-    texts.add(FloatText(bonus == 3 ? 'جاخالی! +۳' : 'جاخالی! +۶', kidX + 30,
+    texts.add(FloatText(bonus == 3 ? 'جاخالی! +۳' : (bonus == 6 ? 'جاخالی! +۶' : 'جاخالی! +${bonus}'), kidX + 30,
         floorY - kidY - 120, const Color(0xFFFF5A4E)));
     _burst(x, y, 8, const Color(0xFFFFFFFF), 1);
   }

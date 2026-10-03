@@ -11,6 +11,7 @@ import '../services/ad_service.dart';
 import '../services/audio.dart';
 import '../services/missions.dart';
 import '../services/save_data.dart';
+import '../services/store_service.dart';
 import '../theme.dart';
 
 const _gameOverLines = [
@@ -44,6 +45,7 @@ class _GameScreenState extends State<GameScreen>
   int _recNear = 0, _recSlip = 0, _recBelt = 0, _recJumps = 0, _recCoins = 0;
   bool _recGame = false;
   final List<Mission> _missionsDone = [];
+  int _piggyAdded = 0;
   String _momLine = _gameOverLines.first;
 
   SaveData get s => SaveData.i;
@@ -58,6 +60,7 @@ class _GameScreenState extends State<GameScreen>
       DeviceOrientation.landscapeRight,
     ]);
     _w.ability = s.ability;
+    _w.eventCoinMul = s.weekendEvent ? 2 : 1;
     _w.tutorial = !s.tutorialDone;
     if (_w.tutorial) _hintTime = 0;
     _w.reset();
@@ -161,6 +164,7 @@ class _GameScreenState extends State<GameScreen>
       jumps: _w.jumps - _recJumps,
       games: _recGame ? 0 : 1,
     ));
+    _piggyAdded += s.addToPiggy(_w.coinsThisRun - _recCoins);
     _recCoins = _w.coinsThisRun;
     _recNear = _w.nearMisses;
     _recSlip = _w.slippersDodged;
@@ -168,6 +172,73 @@ class _GameScreenState extends State<GameScreen>
     _recJumps = _w.jumps;
     _recGame = true;
     _missionsDone.addAll(done);
+    // After the 3rd game, show the one-time starter offer (24 hours).
+    if (s.shouldShowStarterOffer) {
+      s.startStarterOffer();
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) _showStarterOffer();
+      });
+    }
+  }
+
+  Future<void> _showStarterOffer() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Panel(
+          radius: 28,
+          padding: const EdgeInsets.all(20),
+          gradient: const LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [C.teal, Color(0xFF1C6FA8)],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+              decoration: BoxDecoration(
+                  color: C.red, borderRadius: BorderRadius.circular(999)),
+              child: const Text('پیشنهاد ویژه · فقط ۲۴ ساعت',
+                  style: TextStyle(color: C.white, fontWeight: FontWeight.w900)),
+            ),
+            const SizedBox(height: 10),
+            const OutlinedTitle('بسته شروع', size: 34, fill: C.gold),
+            const SizedBox(height: 10),
+            for (final line in const [
+              'حذف همیشگی تبلیغات',
+              '۵٬۰۰۰ سکه',
+              'شخصیت «گل‌زن محله» با قدرت شوت',
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.check_circle_rounded, color: C.gold, size: 20),
+                  const SizedBox(width: 6),
+                  Text(line,
+                      style: const TextStyle(
+                          color: C.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                ]),
+              ),
+            const SizedBox(height: 14),
+            GameButton(
+              tone: Tone.gold,
+              onTap: () async {
+                Navigator.pop(ctx);
+                await StoreService.buy(context, Products.starter);
+              },
+              child: Text(Products.starter.priceLabel, style: const TextStyle(fontSize: 18)),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('بعداً',
+                  style: TextStyle(color: C.white, fontWeight: FontWeight.w700)),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   void _useGrandma() {
@@ -209,6 +280,7 @@ class _GameScreenState extends State<GameScreen>
       _recNear = _recSlip = _recBelt = _recJumps = _recCoins = 0;
       _recGame = false;
       _missionsDone.clear();
+      _piggyAdded = 0;
       _hintTime = 0;
     });
   }
@@ -268,6 +340,18 @@ class _GameScreenState extends State<GameScreen>
                   CoinPill(amount: _w.coinsThisRun),
                   const SizedBox(height: 8),
                   _abilityBadge(),
+                  if (_w.eventCoinMul > 1) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [C.gold, C.goldDark]),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text('آخر هفته: سکه ×۲',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: C.ink)),
+                    ),
+                  ],
                 ],
               ),
               const Spacer(),
@@ -633,6 +717,16 @@ class _GameScreenState extends State<GameScreen>
                   style: kBody.copyWith(fontWeight: FontWeight.w900)),
             ),
           ),
+          if (_piggyAdded > 0) ...[
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.savings_rounded, color: C.purpleDark, size: 18),
+              const SizedBox(width: 6),
+              Text('+${fa(_piggyAdded)} سکه رفت تو قلک',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800, color: C.purpleDark)),
+            ]),
+          ],
           for (final m in _missionsDone) ...[
             const SizedBox(height: 8),
             Center(

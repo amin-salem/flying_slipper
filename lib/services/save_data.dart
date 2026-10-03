@@ -37,6 +37,8 @@ class SaveData extends ChangeNotifier {
   bool soundOn = true;
   bool musicOn = true;
   bool tutorialDone = false;
+  int piggy = 0; // coins waiting in the piggy bank
+  int starterOfferStart = 0; // when the 24h starter offer began (ms)
   Map<String, int> powerLevels = {}; // character id -> 1..3
   String missionDay = '';
   List<int> missionProgress = [0, 0, 0];
@@ -66,6 +68,8 @@ class SaveData extends ChangeNotifier {
       for (final e in _p.getStringList('powerLevels') ?? const <String>[])
         if (e.contains(':')) e.split(':')[0]: int.tryParse(e.split(':')[1]) ?? 1
     };
+    piggy = _p.getInt('piggy') ?? 0;
+    starterOfferStart = _p.getInt('starterOfferStart') ?? 0;
     missionDay = _p.getString('missionDay') ?? '';
     final mp = _p.getStringList('missionProgress') ?? const ['0', '0', '0'];
     missionProgress = [for (final v in mp) int.tryParse(v) ?? 0];
@@ -101,6 +105,8 @@ class SaveData extends ChangeNotifier {
     await _p.setBool('tutorialDone', tutorialDone);
     await _p.setStringList('powerLevels',
         [for (final e in powerLevels.entries) '${e.key}:${e.value}']);
+    await _p.setInt('piggy', piggy);
+    await _p.setInt('starterOfferStart', starterOfferStart);
     await _p.setString('missionDay', missionDay);
     await _p.setStringList(
         'missionProgress', [for (final v in missionProgress) '$v']);
@@ -209,6 +215,45 @@ class SaveData extends ChangeNotifier {
     lastDaily = _today;
     _save();
     return r;
+  }
+
+  // ---- Piggy bank ----
+  static const piggyMax = 3000;
+  static const piggyMinToBreak = 500;
+
+  /// 20% of every run's coins also drop into the piggy bank (as a bonus).
+  int addToPiggy(int runCoins) {
+    var add = (runCoins * 0.2).round();
+    if (add > piggyMax - piggy) add = piggyMax - piggy;
+    if (add <= 0) return 0;
+    piggy += add;
+    _save();
+    return add;
+  }
+
+  // ---- Starter offer (24 hours, shown after the 3rd game) ----
+  static const offerHours = 24;
+  bool get shouldShowStarterOffer =>
+      !starterBought && starterOfferStart == 0 && gamesPlayed >= 3;
+
+  void startStarterOffer() {
+    starterOfferStart = DateTime.now().millisecondsSinceEpoch;
+    _save();
+  }
+
+  /// Time left on the starter offer, or null if not running / expired.
+  Duration? get starterOfferLeft {
+    if (starterBought || starterOfferStart == 0) return null;
+    final end = DateTime.fromMillisecondsSinceEpoch(starterOfferStart)
+        .add(const Duration(hours: offerHours));
+    final left = end.difference(DateTime.now());
+    return left.isNegative ? null : left;
+  }
+
+  // ---- Weekend event: double coins on Thursday and Friday ----
+  bool get weekendEvent {
+    final d = DateTime.now().weekday;
+    return d == DateTime.thursday || d == DateTime.friday;
   }
 
   // ---- Daily missions ----
@@ -333,6 +378,10 @@ class SaveData extends ChangeNotifier {
         coins += 5000;
         owned.add('football');
         skin = 'football';
+        break;
+      case 'piggy_bank':
+        coins += piggy;
+        piggy = 0;
         break;
       case 'vip_monthly':
         vip = true;

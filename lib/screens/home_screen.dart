@@ -118,6 +118,20 @@ class _HomeScreenState extends State<HomeScreen>
                   ]),
                   const SizedBox(height: 6),
                   _Title(anim: _anim),
+                  if (s.weekendEvent)
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [C.gold, C.goldDark]),
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: kSoftShadow,
+                        ),
+                        child: const Text('آخر هفته‌ست! همه سکه‌ها دوبرابر',
+                            style: TextStyle(fontWeight: FontWeight.w900, color: C.ink)),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   Expanded(
                     child: GestureDetector(

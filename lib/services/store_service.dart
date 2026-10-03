@@ -28,6 +28,8 @@ class Products {
       Product('coins_large', 'صندوقچه سکه', '۱۵٬۰۰۰ سکه', '[قیمت] تومان');
   static const removeAds = Product('remove_ads', 'حذف تبلیغات',
       'تبلیغ‌های اجباری برای همیشه حذف', '[قیمت] تومان');
+  static const piggy = Product('piggy_bank', 'شکستن قلک',
+      'همه سکه‌های قلک مال تو میشه', '[قیمت] تومان');
   static const vip = Product('vip_monthly', 'اشتراک VIP',
       'بدون تبلیغ، ادامه رایگان بعد از باخت', '[قیمت] / ماه');
 }
