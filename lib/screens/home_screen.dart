@@ -9,6 +9,7 @@ import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../theme.dart';
 import 'game_screen.dart';
+import 'house_screen.dart';
 import 'rewards.dart';
 import 'shop_screen.dart';
 
@@ -134,6 +135,31 @@ class _HomeScreenState extends State<HomeScreen>
                             style: TextStyle(
                                 color: C.ink, fontWeight: FontWeight.w900)),
                       ),
+                    Stack(clipBehavior: Clip.none, children: [
+                      RoundButton(
+                        icon: Icons.home_repair_service_rounded,
+                        label: 'تعمیر خونه',
+                        tone: Tone.green,
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const HouseScreen())),
+                      ),
+                      if (s.repairs.length < kRepairs.length &&
+                          s.coins >= kRepairs[s.repairs.length].cost)
+                        Positioned(
+                          top: -4,
+                          left: -4,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: C.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: C.white, width: 2),
+                            ),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(width: 10),
                     RoundButton(
                         icon: Icons.settings_rounded,
                         label: 'تنظیمات',

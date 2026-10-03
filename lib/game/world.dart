@@ -213,6 +213,12 @@ class GameWorld {
   /// The selected character's special power. Set before [reset].
   Ability ability = const Ability();
 
+  // ---- Bonuses from repairing the house (set by the screen) ----
+  double attackDelayMul = 1; // > 1: parents attack less often
+  double dadDelay = 0; // extra seconds before Dad first arrives
+  double angerMul = 1; // < 1: anger grows slower
+  bool houseShield = false; // start with a pillow shield
+
   /// Extra coin multiplier from events (weekend double coins).
   int eventCoinMul = 1;
   int get coinValue => ability.coinMul * eventCoinMul * (doubleT > 0 ? 2 : 1);
@@ -494,7 +500,7 @@ class GameWorld {
     jumps = 0;
     slippersDodged = 0;
     beltsDodged = 0;
-    shield = ability.startShield;
+    shield = ability.startShield || houseShield;
     invincible = 0;
     grandmaFlash = 0;
     calm = 0;
@@ -506,7 +512,7 @@ class GameWorld {
     chaser = Parent.mom;
     _outgoing = Parent.mom;
     swapTimer = 0;
-    _nextSwap = tutorial ? 9999 : 20; // Dad shows up after ~20 seconds
+    _nextSwap = tutorial ? 9999 : 20 + dadDelay; // Dad shows up after ~20 seconds
     tutStep = 0;
     _tutTimer = 1.2;
     tutFreeze = false;
@@ -666,7 +672,7 @@ class GameWorld {
       return;
     }
 
-    anger = (0.15 + meters / 1400).clamp(0.0, 1.0);
+    anger = (0.15 + meters / (1400 / angerMul)).clamp(0.0, 1.0);
     speed = _lerp(270, 560, anger) * ability.speedMul;
     traveled += speed * dt;
     runPhase += dt * speed / 19;
@@ -885,7 +891,7 @@ class GameWorld {
     final li = rng.nextInt(lines.length);
     _say(lines[li], '${_who}_$li', _windupDur + 0.6);
     events.add(GameEvent.windup);
-    _throwTimer = _lerp(4.2, 1.9, anger) + rng.nextDouble() * 1.4;
+    _throwTimer = (_lerp(4.2, 1.9, anger) + rng.nextDouble() * 1.4) * attackDelayMul;
   }
 
   void _attack(ThrowKind kind) {

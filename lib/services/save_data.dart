@@ -48,6 +48,7 @@ class SaveData extends ChangeNotifier {
   bool tutorialDone = false;
   int piggy = 0; // coins waiting in the piggy bank
   int mysteryBoxes = 0;
+  Set<String> repairs = {}; // house repairs done
   String wordDay = '';
   int wordProgress = 0; // letters of today's word collected
   int starterOfferStart = 0; // when the 24h starter offer began (ms)
@@ -83,6 +84,7 @@ class SaveData extends ChangeNotifier {
     };
     piggy = _p.getInt('piggy') ?? 0;
     mysteryBoxes = _p.getInt('mysteryBoxes') ?? 0;
+    repairs = (_p.getStringList('repairs') ?? const <String>[]).toSet();
     wordDay = _p.getString('wordDay') ?? '';
     wordProgress = _p.getInt('wordProgress') ?? 0;
     starterOfferStart = _p.getInt('starterOfferStart') ?? 0;
@@ -127,6 +129,7 @@ class SaveData extends ChangeNotifier {
         [for (final e in powerLevels.entries) '${e.key}:${e.value}']);
     await _p.setInt('piggy', piggy);
     await _p.setInt('mysteryBoxes', mysteryBoxes);
+    await _p.setStringList('repairs', repairs.toList());
     await _p.setString('wordDay', wordDay);
     await _p.setInt('wordProgress', wordProgress);
     await _p.setInt('starterOfferStart', starterOfferStart);
@@ -269,6 +272,15 @@ class SaveData extends ChangeNotifier {
     lastDaily = _today;
     _save();
     return r;
+  }
+
+  // ---- Fix the house ----
+  bool doRepair(String id, int cost) {
+    if (repairs.contains(id)) return false;
+    if (!spend(cost)) return false;
+    repairs.add(id);
+    _save();
+    return true;
   }
 
   // ---- Daily word hunt ----

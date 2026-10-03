@@ -13,6 +13,7 @@ import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../services/share_card.dart';
 import '../services/store_service.dart';
+import 'house_screen.dart' show HouseBonus;
 import 'rewards.dart';
 import '../theme.dart';
 
@@ -49,6 +50,15 @@ class _GameScreenState extends State<GameScreen>
   final List<Mission> _missionsDone = [];
   int _piggyAdded = 0;
   int _recBoxes = 0;
+  int _houseBonusCoins = 0;
+
+  void _applyHouse() {
+    final b = HouseBonus.of(s.repairs);
+    _w.attackDelayMul = b.throwDelayMul;
+    _w.dadDelay = b.dadDelay;
+    _w.angerMul = b.angerMul;
+    _w.houseShield = b.startShield;
+  }
   bool _spun = false;
   String _momLine = _gameOverLines.first;
 
@@ -65,6 +75,7 @@ class _GameScreenState extends State<GameScreen>
     ]);
     _w.ability = s.ability;
     _w.powerDurations = s.boostDurations;
+    _applyHouse();
     _w.wordLetters = lettersOf(s.todayWord);
     _w.wordIndex = s.todayWordProgress;
     _w.eventCoinMul = s.weekendEvent ? 2 : 1;
@@ -182,6 +193,12 @@ class _GameScreenState extends State<GameScreen>
       jumps: _w.jumps - _recJumps,
       games: _recGame ? 0 : 1,
     ));
+    final houseExtra =
+        ((_w.coinsThisRun - _recCoins) * HouseBonus.of(s.repairs).coinBonus).round();
+    if (houseExtra > 0) {
+      s.addCoins(houseExtra);
+      _houseBonusCoins += houseExtra;
+    }
     _piggyAdded += s.addToPiggy(_w.coinsThisRun - _recCoins);
     s.addBoxes(_w.boxesThisRun - _recBoxes);
     _recBoxes = _w.boxesThisRun;
@@ -305,6 +322,7 @@ class _GameScreenState extends State<GameScreen>
       _piggyAdded = 0;
       _recBoxes = 0;
       _spun = false;
+      _houseBonusCoins = 0;
       _hintTime = 0;
     });
   }
@@ -811,6 +829,15 @@ class _GameScreenState extends State<GameScreen>
                   style: kBody.copyWith(fontWeight: FontWeight.w900)),
             ),
           ),
+          if (_houseBonusCoins > 0) ...[
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.home_repair_service_rounded, color: C.greenDark, size: 18),
+              const SizedBox(width: 6),
+              Text('+${fa(_houseBonusCoins)} سکه پاداش تعمیر خونه',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: C.greenDark)),
+            ]),
+          ],
           if (_piggyAdded > 0) ...[
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
