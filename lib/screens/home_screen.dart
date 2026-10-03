@@ -9,6 +9,7 @@ import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../theme.dart';
 import 'game_screen.dart';
+import 'rewards.dart';
 import 'shop_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -98,6 +99,27 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   Row(children: [
                     CoinPill(amount: s.coins, onTap: () => _openShop(0)),
+                    if (s.mysteryBoxes > 0) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => showOpenBoxes(context),
+                        child: Container(
+                          height: 42,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [C.purple, C.purpleDark]),
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: kSoftShadow,
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.card_giftcard_rounded, color: C.white, size: 22),
+                            const SizedBox(width: 4),
+                            Text(fa(s.mysteryBoxes),
+                                style: const TextStyle(color: C.white, fontWeight: FontWeight.w900)),
+                          ]),
+                        ),
+                      ),
+                    ],
                     const Spacer(),
                     if (s.vip)
                       Container(

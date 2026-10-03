@@ -13,6 +13,7 @@ import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../services/share_card.dart';
 import '../services/store_service.dart';
+import 'rewards.dart';
 import '../theme.dart';
 
 const _gameOverLines = [
@@ -47,6 +48,8 @@ class _GameScreenState extends State<GameScreen>
   bool _recGame = false;
   final List<Mission> _missionsDone = [];
   int _piggyAdded = 0;
+  int _recBoxes = 0;
+  bool _spun = false;
   String _momLine = _gameOverLines.first;
 
   SaveData get s => SaveData.i;
@@ -170,6 +173,8 @@ class _GameScreenState extends State<GameScreen>
       games: _recGame ? 0 : 1,
     ));
     _piggyAdded += s.addToPiggy(_w.coinsThisRun - _recCoins);
+    s.addBoxes(_w.boxesThisRun - _recBoxes);
+    _recBoxes = _w.boxesThisRun;
     _recCoins = _w.coinsThisRun;
     _recNear = _w.nearMisses;
     _recSlip = _w.slippersDodged;
@@ -286,6 +291,8 @@ class _GameScreenState extends State<GameScreen>
       _recGame = false;
       _missionsDone.clear();
       _piggyAdded = 0;
+      _recBoxes = 0;
+      _spun = false;
       _hintTime = 0;
     });
   }
@@ -865,8 +872,42 @@ class _GameScreenState extends State<GameScreen>
             ),
             const SizedBox(height: 10),
           ],
+          if (!_spun && _w.meters >= 150) ...[
+            GameButton(
+              tone: Tone.gold,
+              height: 54,
+              onTap: () async {
+                setState(() => _spun = true);
+                await showLuckyWheel(context);
+                if (mounted) setState(() {});
+              },
+              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.casino_rounded),
+                SizedBox(width: 8),
+                Text('گردونه شانس رایگان!', style: TextStyle(fontSize: 17)),
+              ]),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (s.mysteryBoxes > 0) ...[
+            GameButton(
+              tone: Tone.purple,
+              height: 50,
+              onTap: () async {
+                await showOpenBoxes(context);
+                if (mounted) setState(() {});
+              },
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.card_giftcard_rounded),
+                const SizedBox(width: 8),
+                Text('${fa(s.mysteryBoxes)} جعبه شانس داری، بازش کن!',
+                    style: const TextStyle(fontSize: 15)),
+              ]),
+            ),
+            const SizedBox(height: 10),
+          ],
           GameButton(
-            tone: Tone.purple,
+            tone: Tone.teal,
             height: 50,
             onTap: () => ShareCard.shareRun(
               ch: s.character,

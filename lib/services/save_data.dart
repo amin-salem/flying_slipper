@@ -5,6 +5,15 @@ import '../game/characters.dart';
 import '../game/world.dart' show Ability, PowerKind;
 import 'missions.dart';
 
+enum PrizeKind { coins, pillow, grandma, box }
+
+/// A prize from the lucky wheel or a mystery box.
+class Prize {
+  const Prize(this.kind, this.amount);
+  final PrizeKind kind;
+  final int amount;
+}
+
 /// One day's prize in the 7-day login calendar.
 class DailyReward {
   const DailyReward(this.coins, {this.pillows = 0, this.grandmas = 0});
@@ -38,6 +47,7 @@ class SaveData extends ChangeNotifier {
   bool musicOn = true;
   bool tutorialDone = false;
   int piggy = 0; // coins waiting in the piggy bank
+  int mysteryBoxes = 0;
   int starterOfferStart = 0; // when the 24h starter offer began (ms)
   Map<String, int> powerLevels = {}; // character id -> 1..3
   Map<String, int> boostLevels = {}; // in-run power-up name -> 1..5
@@ -70,6 +80,7 @@ class SaveData extends ChangeNotifier {
         if (e.contains(':')) e.split(':')[0]: int.tryParse(e.split(':')[1]) ?? 1
     };
     piggy = _p.getInt('piggy') ?? 0;
+    mysteryBoxes = _p.getInt('mysteryBoxes') ?? 0;
     starterOfferStart = _p.getInt('starterOfferStart') ?? 0;
     boostLevels = {
       for (final e in _p.getStringList('boostLevels') ?? const <String>[])
@@ -111,6 +122,7 @@ class SaveData extends ChangeNotifier {
     await _p.setStringList('powerLevels',
         [for (final e in powerLevels.entries) '${e.key}:${e.value}']);
     await _p.setInt('piggy', piggy);
+    await _p.setInt('mysteryBoxes', mysteryBoxes);
     await _p.setInt('starterOfferStart', starterOfferStart);
     await _p.setStringList('boostLevels',
         [for (final e in boostLevels.entries) '${e.key}:${e.value}']);
@@ -251,6 +263,34 @@ class SaveData extends ChangeNotifier {
     lastDaily = _today;
     _save();
     return r;
+  }
+
+  // ---- Mystery boxes & prizes ----
+  void addBoxes(int n) {
+    if (n <= 0) return;
+    mysteryBoxes += n;
+    _save();
+  }
+
+  bool useBox() {
+    if (mysteryBoxes <= 0) return false;
+    mysteryBoxes--;
+    _save();
+    return true;
+  }
+
+  void applyPrize(Prize p) {
+    switch (p.kind) {
+      case PrizeKind.coins:
+        coins += p.amount;
+      case PrizeKind.pillow:
+        pillows += p.amount;
+      case PrizeKind.grandma:
+        grandmas += p.amount;
+      case PrizeKind.box:
+        mysteryBoxes += p.amount;
+    }
+    _save();
   }
 
   // ---- Piggy bank ----

@@ -32,6 +32,7 @@ class GamePainter extends CustomPainter {
     _background(canvas, vs);
     _coins(canvas);
     _pickups(canvas);
+    _giftBoxes(canvas);
     _obstacles(canvas);
     _parent(canvas);
     _warning(canvas);
@@ -189,6 +190,13 @@ class GamePainter extends CustomPainter {
     for (final coin in w.coins) {
       final sq = 0.35 + 0.65 * cos(w.time * 5 + coin.x / 60).abs();
       paintCoin(c, Offset(coin.x, coin.y), 12, sq);
+    }
+  }
+
+  void _giftBoxes(Canvas c) {
+    for (final b in w.giftBoxes) {
+      final p = Offset(b.x, b.y + sin(b.age * 3) * 6);
+      drawGiftBox(c, p, 22, b.age);
     }
   }
 
@@ -795,4 +803,37 @@ void drawPowerIcon(Canvas c, PowerKind k, Offset p, double r) {
       c.drawOval(Rect.fromCenter(center: b + Offset(-r * 0.2, -r * 0.25), width: r * 0.3, height: r * 0.4),
           Paint()..color = const Color(0x66FFFFFF));
   }
+}
+
+
+/// Mystery gift box with a "?" (game, game-over card, home).
+void drawGiftBox(Canvas c, Offset p, double r, double time) {
+  final wobble = sin(time * 5) * 0.08;
+  c.save();
+  c.translate(p.dx, p.dy);
+  c.rotate(wobble);
+  final glow = 0.5 + 0.5 * sin(time * 6);
+  c.drawCircle(Offset.zero, r * 1.5, Paint()..color = Color.fromARGB((50 + glow * 60).round(), 255, 211, 77));
+  final box = Rect.fromCenter(center: Offset(0, r * 0.15), width: r * 1.8, height: r * 1.5);
+  c.drawRect(box, Paint()..color = const Color(0xFF8E5BD6));
+  final lid = Rect.fromCenter(center: Offset(0, -r * 0.6), width: r * 2.0, height: r * 0.45);
+  c.drawRect(lid, Paint()..color = const Color(0xFFA77BFF));
+  final ribbon = Paint()..color = C.gold;
+  c.drawRect(Rect.fromCenter(center: Offset(0, r * 0.05), width: r * 0.35, height: r * 1.8), ribbon);
+  c.drawOval(Rect.fromCenter(center: Offset(-r * 0.35, -r * 0.95), width: r * 0.7, height: r * 0.45), ribbon);
+  c.drawOval(Rect.fromCenter(center: Offset(r * 0.35, -r * 0.95), width: r * 0.7, height: r * 0.45), ribbon);
+  final o = Paint()
+    ..color = C.ink
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = r * 0.1;
+  c.drawRect(box, o);
+  c.drawRect(lid, o);
+  final tp = TextPainter(
+    text: TextSpan(
+        text: '؟',
+        style: TextStyle(fontFamily: 'Vazirmatn', fontSize: r * 1.0, fontWeight: FontWeight.w900, color: C.white)),
+    textDirection: TextDirection.rtl,
+  )..layout();
+  tp.paint(c, Offset(-tp.width / 2 - r * 0.45, r * 0.15 - tp.height / 2));
+  c.restore();
 }

@@ -42,6 +42,14 @@ const powerNames = {
   PowerKind.balloon: 'بادکنک',
 };
 
+/// A mystery gift box floating in the run.
+class GiftBox {
+  GiftBox(this.x, this.y);
+  double x;
+  double y;
+  double age = 0;
+}
+
 class Pickup {
   Pickup(this.kind, this.x, this.y);
   final PowerKind kind;
@@ -208,6 +216,9 @@ class GameWorld {
     PowerKind.balloon: 4,
   };
   final List<Pickup> pickups = [];
+  final List<GiftBox> giftBoxes = [];
+  int boxesThisRun = 0;
+  double _boxTimer = 30;
   double magnetT = 0, doubleT = 0, skateT = 0, balloonT = 0;
   double _pickupTimer = 8;
   double _balloonCoinTimer = 0;
@@ -282,6 +293,10 @@ class GameWorld {
     for (final pk in pickups) {
       pk.x += dx;
       pk.y += dy;
+    }
+    for (final b in giftBoxes) {
+      b.x += dx;
+      b.y += dy;
     }
   }
 
@@ -488,6 +503,9 @@ class GameWorld {
     particles.clear();
     texts.clear();
     pickups.clear();
+    giftBoxes.clear();
+    boxesThisRun = 0;
+    _boxTimer = 25 + rng.nextDouble() * 15;
     magnetT = doubleT = skateT = balloonT = 0;
     _pickupTimer = 8;
     pickupsCollected = 0;
@@ -1021,6 +1039,18 @@ class GameWorld {
       _obstacleTimer = _lerp(1.9, 0.95, anger) + rng.nextDouble() * 1.0;
     }
 
+    // Mystery gift boxes (rare), up high: a real jump to reach
+    _boxTimer -= dt;
+    if (_boxTimer <= 0) {
+      final x = size.width + 40;
+      if (!hazards.any((h) => !h.isSlipper && (h.x - x).abs() < 120)) {
+        giftBoxes.add(GiftBox(x, floorY - 150));
+        _boxTimer = 35 + rng.nextDouble() * 25;
+      } else {
+        _boxTimer = 0.6;
+      }
+    }
+
     // Power-up pickups, floating at jump height
     _pickupTimer -= dt;
     if (_pickupTimer <= 0) {
@@ -1120,6 +1150,11 @@ class GameWorld {
       pk.x -= speed * dt;
     }
     pickups.removeWhere((pk) => pk.x < -60);
+    for (final b in giftBoxes) {
+      b.age += dt;
+      b.x -= speed * dt;
+    }
+    giftBoxes.removeWhere((b) => b.x < -60);
 
     for (final t in texts) {
       t.life -= dt;
@@ -1170,6 +1205,18 @@ class GameWorld {
       if (kid.inflate(16).contains(Offset(pk.x, py))) {
         _activate(pk.kind);
         _burst(pk.x, py, 10, const Color(0xFFA77BFF), 1);
+        return true;
+      }
+      return false;
+    });
+    giftBoxes.removeWhere((b) {
+      final by = b.y + sin(b.age * 3) * 6;
+      if (kid.inflate(18).contains(Offset(b.x, by))) {
+        boxesThisRun++;
+        events.add(GameEvent.powerup);
+        _burst(b.x, by, 14, const Color(0xFFFFD34D), 1);
+        texts.add(FloatText('جعبه شانس!', kidX + 20, floorY - kidY - 140,
+            const Color(0xFFF5A623), size: 24));
         return true;
       }
       return false;
