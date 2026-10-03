@@ -26,6 +26,7 @@ flutter:
   assets:
     - assets/sfx/
     - assets/music/
+    - assets/voice/
   fonts:
     - family: Vazirmatn
       fonts:

@@ -132,6 +132,9 @@ class _GameScreenState extends State<GameScreen>
         case GameEvent.crack:
           Audio.i.play(Sfx.crack, volume: 0.9);
           break;
+        case GameEvent.shout:
+          Audio.i.playVoice(_w.shoutKey);
+          break;
         case GameEvent.tutorialDone:
           s.setTutorialDone(true);
           Audio.i.play(Sfx.reward);

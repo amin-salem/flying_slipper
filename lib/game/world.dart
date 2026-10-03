@@ -18,6 +18,7 @@ enum GameEvent {
   crack, // belt crack
   parentSwap,
   tutorialDone,
+  shout, // a parent says something (see [GameWorld.shoutKey] for the voice file)
 }
 
 /// Who is chasing right now.
@@ -299,6 +300,19 @@ class GameWorld {
   ThrowKind? get warning => windup > 0 ? _nextThrow : null;
   String shout = '';
   double shoutTimer = 0;
+
+  /// Name of the voice file for the current shout, e.g. 'mom_3'
+  /// (assets/voice/mom_3.ogg). Played only if that file exists.
+  String shoutKey = '';
+
+  void _say(String text, String key, double seconds) {
+    shout = text;
+    shoutKey = key;
+    shoutTimer = seconds;
+    events.add(GameEvent.shout);
+  }
+
+  String get _who => chaser == Parent.mom ? 'mom' : 'dad';
   double get parentX =>
       kidX - 150 + anger * 30 + sin(time * 1.3) * 8 + parentSlide;
 
@@ -470,8 +484,7 @@ class GameWorld {
     _throwTimer = 3.2;
     _obstacleTimer = max(_obstacleTimer, 1.4);
     grandmaFlash = 1.0;
-    shout = chaser == Parent.mom ? 'باشه مادر جون...' : 'چشم مادر...';
-    shoutTimer = 1.6;
+    _say(chaser == Parent.mom ? 'باشه مادر جون...' : 'چشم مادر...', '${_who}_calm', 1.6);
     texts.add(FloatText('مادربزرگ نجاتت داد!', size.width / 2, floorY - 220,
         const Color(0xFF26C6BE), size: 24));
     events.add(GameEvent.powerup);
@@ -655,8 +668,12 @@ class GameWorld {
         final dad = chaser == Parent.dad;
         texts.add(FloatText(dad ? 'بابا اومد!' : 'مامان برگشت!',
             size.width / 2, floorY - 240, const Color(0xFFFF5A4E), size: 30));
-        shout = dad ? dadLines[rng.nextInt(dadLines.length)] : momLines[0];
-        shoutTimer = 1.6;
+        if (dad) {
+          final i = rng.nextInt(dadLines.length);
+          _say(dadLines[i], 'dad_$i', 1.6);
+        } else {
+          _say(momLines[0], 'mom_0', 1.6);
+        }
         events.add(GameEvent.parentSwap);
       }
       return;
@@ -724,8 +741,8 @@ class GameWorld {
     _nextThrow = kind;
     windup = 0.001;
     final lines = chaser == Parent.mom ? momLines : dadLines;
-    shout = lines[rng.nextInt(lines.length)];
-    shoutTimer = _windupDur + 0.6;
+    final li = rng.nextInt(lines.length);
+    _say(lines[li], '${_who}_$li', _windupDur + 0.6);
     events.add(GameEvent.windup);
     _throwTimer = _lerp(4.2, 1.9, anger) + rng.nextDouble() * 1.4;
   }
@@ -774,8 +791,8 @@ class GameWorld {
     _nextThrow = kind;
     _windupDur = windupSeconds;
     windup = 0.001;
-    shout = momLines[rng.nextInt(momLines.length)];
-    shoutTimer = windupSeconds + 0.6;
+    final li = rng.nextInt(momLines.length);
+    _say(momLines[li], 'mom_$li', windupSeconds + 0.6);
     events.add(GameEvent.windup);
   }
 
@@ -1082,8 +1099,7 @@ class GameWorld {
       h.vx = -180;
       h.vy = -300;
     }
-    shout = chaser == Parent.mom ? 'گرفتمت!' : 'حالا شد!';
-    shoutTimer = 2;
+    _say(chaser == Parent.mom ? 'گرفتمت!' : 'حالا شد!', '${_who}_caught', 2);
   }
 
   // ---------------- Particles ----------------

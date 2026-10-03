@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 /// Every sound in the game. File names match assets/sfx/<name>.ogg
@@ -44,6 +45,10 @@ class Audio {
   bool soundOn = true;
   bool musicOn = true;
 
+  /// Optional recorded voices: assets/voice/<key>.ogg (or .mp3 / .m4a / .wav).
+  final Map<String, String> _voiceFiles = {};
+  AudioPlayer? _voice;
+
   Future<void> init({required bool sound, required bool music}) async {
     soundOn = sound;
     musicOn = music;
@@ -61,6 +66,39 @@ class Audio {
       _pools[s] = players;
       _next[s] = 0;
     }
+    await _findVoices();
+  }
+
+  Future<void> _findVoices() async {
+    try {
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      for (final path in manifest.listAssets()) {
+        if (!path.startsWith('assets/voice/')) continue;
+        final name = path.split('/').last;
+        final dot = name.lastIndexOf('.');
+        if (dot <= 0) continue;
+        final ext = name.substring(dot + 1).toLowerCase();
+        if (!['ogg', 'mp3', 'm4a', 'wav', 'aac'].contains(ext)) continue;
+        _voiceFiles[name.substring(0, dot)] = path;
+      }
+      if (_voiceFiles.isNotEmpty) _voice = AudioPlayer(handleInterruptions: false);
+    } catch (_) {}
+  }
+
+  /// Plays a recorded voice line if the file exists (e.g. key 'dad_2').
+  void playVoice(String key) {
+    if (!soundOn || key.isEmpty) return;
+    final path = _voiceFiles[key];
+    final v = _voice;
+    if (path == null || v == null) return;
+    () async {
+      try {
+        await v.stop();
+        await v.setAsset(path);
+        await v.setVolume(1.0);
+        v.play().catchError((_) {});
+      } catch (_) {}
+    }();
   }
 
   void play(Sfx s, {double volume = 1.0}) {
