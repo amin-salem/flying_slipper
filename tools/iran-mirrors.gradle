@@ -25,14 +25,26 @@ def addMirrors = { repos ->
     }
 }
 
+// Builds that say "use only settings repositories" (like Flutter's own
+// Gradle helper) must not get project-level repositories.
+def projectReposAllowed = true
+
 // Before settings.gradle(.kts) runs: plugins like com.android.application
 beforeSettings { settings ->
     addMirrors(settings.pluginManagement.repositories)
     addMirrors(settings.dependencyResolutionManagement.repositories)
 }
 
+settingsEvaluated { settings ->
+    def mode = settings.dependencyResolutionManagement.repositoriesMode.get()
+    projectReposAllowed =
+        mode == org.gradle.api.initialization.resolve.RepositoriesMode.PREFER_PROJECT
+}
+
 // Before each project (the app and every Flutter plugin) is configured
 beforeProject { project ->
     addMirrors(project.buildscript.repositories)
-    addMirrors(project.repositories)
+    if (projectReposAllowed) {
+        addMirrors(project.repositories)
+    }
 }
