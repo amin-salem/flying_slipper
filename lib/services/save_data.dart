@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/characters.dart';
-import '../game/world.dart' show Ability;
+import '../game/world.dart' show Ability, PowerKind;
 import 'missions.dart';
 
 /// One day's prize in the 7-day login calendar.
@@ -40,6 +40,7 @@ class SaveData extends ChangeNotifier {
   int piggy = 0; // coins waiting in the piggy bank
   int starterOfferStart = 0; // when the 24h starter offer began (ms)
   Map<String, int> powerLevels = {}; // character id -> 1..3
+  Map<String, int> boostLevels = {}; // in-run power-up name -> 1..5
   String missionDay = '';
   List<int> missionProgress = [0, 0, 0];
   List<bool> missionClaimed = [false, false, false];
@@ -70,6 +71,10 @@ class SaveData extends ChangeNotifier {
     };
     piggy = _p.getInt('piggy') ?? 0;
     starterOfferStart = _p.getInt('starterOfferStart') ?? 0;
+    boostLevels = {
+      for (final e in _p.getStringList('boostLevels') ?? const <String>[])
+        if (e.contains(':')) e.split(':')[0]: int.tryParse(e.split(':')[1]) ?? 1
+    };
     missionDay = _p.getString('missionDay') ?? '';
     final mp = _p.getStringList('missionProgress') ?? const ['0', '0', '0'];
     missionProgress = [for (final v in mp) int.tryParse(v) ?? 0];
@@ -107,6 +112,8 @@ class SaveData extends ChangeNotifier {
         [for (final e in powerLevels.entries) '${e.key}:${e.value}']);
     await _p.setInt('piggy', piggy);
     await _p.setInt('starterOfferStart', starterOfferStart);
+    await _p.setStringList('boostLevels',
+        [for (final e in boostLevels.entries) '${e.key}:${e.value}']);
     await _p.setString('missionDay', missionDay);
     await _p.setStringList(
         'missionProgress', [for (final v in missionProgress) '$v']);
@@ -115,6 +122,35 @@ class SaveData extends ChangeNotifier {
   }
 
   Character get character => characterById(skin);
+
+  // ---- In-run power-up upgrades (magnet, double coins, skate, balloon) ----
+  static const boostMaxLevel = 5;
+  static const boostCosts = [0, 500, 1200, 2500, 5000]; // cost to reach level 2..5
+
+  int boostLevel(PowerKind k) => boostLevels[k.name] ?? 1;
+
+  /// Seconds the power-up lasts at its current level.
+  double boostDuration(PowerKind k, [int? level]) {
+    final l = (level ?? boostLevel(k)) - 1;
+    return switch (k) {
+      PowerKind.magnet => 8 + 2.5 * l,
+      PowerKind.doubleCoins => 10 + 3.0 * l,
+      PowerKind.skate => 12 + 4.0 * l,
+      PowerKind.balloon => 4 + 1.0 * l,
+    };
+  }
+
+  Map<PowerKind, double> get boostDurations =>
+      {for (final k in PowerKind.values) k: boostDuration(k)};
+
+  bool upgradeBoost(PowerKind k) {
+    final l = boostLevel(k);
+    if (l >= boostMaxLevel) return false;
+    if (!spend(boostCosts[l])) return false;
+    boostLevels[k.name] = l + 1;
+    _save();
+    return true;
+  }
 
   // ---- Power levels ----
   int levelOf(String id) => powerLevels[id] ?? 1;

@@ -31,6 +31,7 @@ class GamePainter extends CustomPainter {
     final vs = w.size;
     _background(canvas, vs);
     _coins(canvas);
+    _pickups(canvas);
     _obstacles(canvas);
     _parent(canvas);
     _warning(canvas);
@@ -191,6 +192,20 @@ class GamePainter extends CustomPainter {
     }
   }
 
+  void _pickups(Canvas c) {
+    for (final pk in w.pickups) {
+      final p = Offset(pk.x, pk.y + sin(pk.age * 4) * 8);
+      final glow = 0.5 + 0.5 * sin(pk.age * 6);
+      c.drawCircle(p, 30 + glow * 4, Paint()..color = Color.fromARGB((60 + glow * 50).round(), 167, 123, 255));
+      c.drawCircle(p, 24, Paint()..color = const Color(0xEEFFFFFF));
+      c.drawCircle(p, 24, Paint()
+        ..color = C.purpleDark
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3);
+      drawPowerIcon(c, pk.kind, p, 15);
+    }
+  }
+
   void _obstacles(Canvas c) {
     for (final h in w.hazards) {
       if (h.isSlipper) continue;
@@ -294,11 +309,50 @@ class GamePainter extends CustomPainter {
         Rect.fromCenter(center: Offset(w.kidX, w.floorY + 3), width: 46 * sh, height: 10 * sh),
         Paint()..color = const Color(0x44000000));
 
-    final flicker = w.invincible > 0 && (w.time * 14).floor().isEven;
+    if (w.magnetT > 0) {
+      final pulse = (w.time * 2) % 1.0;
+      c.drawCircle(feet + const Offset(0, -50), 50 + pulse * 40,
+          Paint()
+            ..color = Color.fromARGB((120 * (1 - pulse)).round(), 255, 90, 78)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3);
+    }
+    if (w.ballooning) {
+      // big red balloon on a string
+      final hand = feet + const Offset(10, -60);
+      final b = feet + Offset(18 + sin(w.time * 3) * 4, -150);
+      c.drawLine(hand, b + const Offset(0, 34), Paint()
+        ..color = C.ink
+        ..strokeWidth = 2);
+      c.drawOval(Rect.fromCenter(center: b, width: 58, height: 68), Paint()..color = const Color(0xFFE53935));
+      c.drawOval(Rect.fromCenter(center: b + const Offset(-12, -14), width: 14, height: 20),
+          Paint()..color = const Color(0x66FFFFFF));
+      c.drawOval(Rect.fromCenter(center: b, width: 58, height: 68), Paint()
+        ..color = C.ink
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5);
+    }
+    final flicker = w.invincible > 0 && !w.ballooning && (w.time * 14).floor().isEven;
+    if (w.skating && w.onGround && !flicker) {
+      // skateboard under the feet
+      final deck = RRect.fromRectAndRadius(
+          Rect.fromCenter(center: feet + const Offset(2, 2), width: 64, height: 9),
+          const Radius.circular(5));
+      c.drawRRect(deck, Paint()..color = const Color(0xFFFFB531));
+      c.drawRRect(deck, Paint()
+        ..color = C.ink
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2);
+      for (final dx in [-20.0, 22.0]) {
+        c.drawCircle(feet + Offset(dx, 10), 5, Paint()..color = const Color(0xFF3A3A44));
+        c.drawCircle(feet + Offset(dx, 10), 2, Paint()..color = C.white);
+      }
+    }
     if (!flicker) {
-      drawCharacter(c, ch, feet, GameWorld.kidScale,
-          phase: w.runPhase,
-          airborne: !w.onGround,
+      drawCharacter(c, ch, feet + (w.skating && w.onGround ? const Offset(0, -10) : Offset.zero),
+          GameWorld.kidScale,
+          phase: w.skating && w.onGround ? 0.25 : w.runPhase,
+          airborne: !w.onGround || w.ballooning,
           squashX: w.squashX,
           squashY: w.squashY,
           tilt: w.tilt,
@@ -691,4 +745,54 @@ class GamePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant GamePainter old) => true;
+}
+
+
+/// Icon for an in-run power-up (used in the game and the HUD/shop).
+void drawPowerIcon(Canvas c, PowerKind k, Offset p, double r) {
+  final ink = Paint()
+    ..color = C.ink
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = r * 0.14
+    ..strokeCap = StrokeCap.round;
+  switch (k) {
+    case PowerKind.magnet:
+      final u = Path()
+        ..moveTo(p.dx - r * 0.6, p.dy - r * 0.7)
+        ..lineTo(p.dx - r * 0.6, p.dy + r * 0.1)
+        ..arcToPoint(Offset(p.dx + r * 0.6, p.dy + r * 0.1), radius: Radius.circular(r * 0.6), clockwise: false)
+        ..lineTo(p.dx + r * 0.6, p.dy - r * 0.7);
+      c.drawPath(u, Paint()
+        ..color = const Color(0xFFE53935)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = r * 0.42);
+      for (final dx in [-0.6, 0.6]) {
+        c.drawRect(Rect.fromCenter(center: Offset(p.dx + dx * r, p.dy - r * 0.62), width: r * 0.44, height: r * 0.3),
+            Paint()..color = const Color(0xFFD5D9E2));
+      }
+    case PowerKind.doubleCoins:
+      paintCoin(c, p, r * 0.85, 1);
+      final tp = TextPainter(
+        text: TextSpan(
+            text: '×۲',
+            style: TextStyle(
+                fontFamily: 'Vazirmatn', fontSize: r * 0.9, fontWeight: FontWeight.w900, color: C.redDark)),
+        textDirection: TextDirection.rtl,
+      )..layout();
+      tp.paint(c, p - Offset(tp.width / 2, tp.height / 2));
+    case PowerKind.skate:
+      final deck = RRect.fromRectAndRadius(
+          Rect.fromCenter(center: p + Offset(0, -r * 0.1), width: r * 1.9, height: r * 0.36), Radius.circular(r * 0.2));
+      c.drawRRect(deck, Paint()..color = const Color(0xFFFFB531));
+      c.drawRRect(deck, ink);
+      for (final dx in [-0.55, 0.55]) {
+        c.drawCircle(p + Offset(dx * r, r * 0.35), r * 0.22, Paint()..color = const Color(0xFF3A3A44));
+      }
+    case PowerKind.balloon:
+      final b = p + Offset(0, -r * 0.2);
+      c.drawLine(b + Offset(0, r * 0.6), p + Offset(r * 0.1, r), ink);
+      c.drawOval(Rect.fromCenter(center: b, width: r * 1.2, height: r * 1.4), Paint()..color = const Color(0xFFE53935));
+      c.drawOval(Rect.fromCenter(center: b + Offset(-r * 0.2, -r * 0.25), width: r * 0.3, height: r * 0.4),
+          Paint()..color = const Color(0x66FFFFFF));
+  }
 }

@@ -32,6 +32,24 @@ enum ObstacleKind { vase, ball, books, samovar, teaTray, cat, geranium }
 ///      remote (throws the TV remote low: JUMP).
 enum ThrowKind { low, high, bounce, twin, whipLow, whipHigh, remote }
 
+/// Power-ups you can grab during a run.
+enum PowerKind { magnet, doubleCoins, skate, balloon }
+
+const powerNames = {
+  PowerKind.magnet: 'آهنربا',
+  PowerKind.doubleCoins: 'سکه دوبل',
+  PowerKind.skate: 'اسکیت',
+  PowerKind.balloon: 'بادکنک',
+};
+
+class Pickup {
+  Pickup(this.kind, this.x, this.y);
+  final PowerKind kind;
+  double x;
+  double y;
+  double age = 0;
+}
+
 /// Special power of a character (see characters.dart).
 class Ability {
   const Ability({
@@ -179,7 +197,53 @@ class GameWorld {
 
   /// Extra coin multiplier from events (weekend double coins).
   int eventCoinMul = 1;
-  int get coinValue => ability.coinMul * eventCoinMul;
+  int get coinValue => ability.coinMul * eventCoinMul * (doubleT > 0 ? 2 : 1);
+
+  // ---- In-run power-ups ----
+  /// How long each power-up lasts (seconds). Set from the shop upgrades.
+  Map<PowerKind, double> powerDurations = {
+    PowerKind.magnet: 8,
+    PowerKind.doubleCoins: 10,
+    PowerKind.skate: 12,
+    PowerKind.balloon: 4,
+  };
+  final List<Pickup> pickups = [];
+  double magnetT = 0, doubleT = 0, skateT = 0, balloonT = 0;
+  double _pickupTimer = 8;
+  double _balloonCoinTimer = 0;
+  int pickupsCollected = 0;
+  bool get skating => skateT > 0;
+  bool get ballooning => balloonT > 0;
+
+  double powerTime(PowerKind k) => switch (k) {
+        PowerKind.magnet => magnetT,
+        PowerKind.doubleCoins => doubleT,
+        PowerKind.skate => skateT,
+        PowerKind.balloon => balloonT,
+      };
+
+  /// 0..1 how much of a power-up is left (for the HUD).
+  double powerLeft(PowerKind k) =>
+      (powerTime(k) / (powerDurations[k] ?? 1)).clamp(0.0, 1.0);
+
+  void _activate(PowerKind k) {
+    final d = powerDurations[k] ?? 8;
+    switch (k) {
+      case PowerKind.magnet:
+        magnetT = d;
+      case PowerKind.doubleCoins:
+        doubleT = d;
+      case PowerKind.skate:
+        skateT = d;
+      case PowerKind.balloon:
+        balloonT = d;
+        kidVy = 0;
+    }
+    pickupsCollected++;
+    events.add(GameEvent.powerup);
+    texts.add(FloatText(powerNames[k]!, kidX + 20, floorY - kidY - 130,
+        const Color(0xFFA77BFF), size: 22));
+  }
 
   double get floorY => size.height * (landscape ? 0.8 : 0.70);
   double get kidX => size.width * (landscape ? 0.3 : 0.36);
@@ -214,6 +278,10 @@ class GameWorld {
     for (final t in texts) {
       t.x += dx;
       t.y += dy;
+    }
+    for (final pk in pickups) {
+      pk.x += dx;
+      pk.y += dy;
     }
   }
 
@@ -419,6 +487,10 @@ class GameWorld {
     coins.clear();
     particles.clear();
     texts.clear();
+    pickups.clear();
+    magnetT = doubleT = skateT = balloonT = 0;
+    _pickupTimer = 8;
+    pickupsCollected = 0;
     _obstacleTimer = 1.6;
     _throwTimer = 3.2;
     _coinTimer = 0.8;
@@ -440,6 +512,7 @@ class GameWorld {
       }
       return; // taps are ignored while we explain "don't jump"
     }
+    if (ballooning) return;
     if (onGround) {
       _doJump();
     } else if (_airJumpsUsed < ability.airJumps) {
@@ -586,6 +659,36 @@ class GameWorld {
   }
 
   void _updateKid(double dt) {
+    if (invincible > 0) invincible -= dt;
+    if (grandmaFlash > 0) grandmaFlash -= dt;
+    if (magnetT > 0) magnetT = max(0, magnetT - dt);
+    if (doubleT > 0) doubleT = max(0, doubleT - dt);
+    if (skateT > 0) skateT = max(0, skateT - dt);
+
+    if (balloonT > 0) {
+      // floating under a big balloon, collecting a trail of coins
+      balloonT -= dt;
+      kidY += (190 - kidY) * min(1.0, dt * 4);
+      kidVy = 0;
+      gliding = false;
+      tilt += (0.0 - tilt) * min(1.0, dt * 8);
+      squashX += (1 - squashX) * min(1.0, dt * 10);
+      squashY += (1 - squashY) * min(1.0, dt * 10);
+      _balloonCoinTimer -= dt;
+      if (_balloonCoinTimer <= 0) {
+        _balloonCoinTimer = 0.12;
+        coins.add(CoinItem(size.width + 20, floorY - 190 - 50));
+      }
+      if (balloonT <= 0) {
+        balloonT = 0;
+        invincible = max(invincible, 1.0);
+        texts.add(FloatText('ترکید!', kidX, floorY - kidY - 120,
+            const Color(0xFFFF5A4E), size: 20));
+        events.add(GameEvent.bounce);
+      }
+      return;
+    }
+
     if (_buffer > 0) _buffer -= dt;
     final wasAir = !onGround;
 
@@ -637,9 +740,6 @@ class GameWorld {
 
     blinkTimer -= dt;
     if (blinkTimer < -0.12) blinkTimer = 1.5 + rng.nextDouble() * 2.5;
-
-    if (invincible > 0) invincible -= dt;
-    if (grandmaFlash > 0) grandmaFlash -= dt;
   }
 
   bool get blinking => blinkTimer < 0;
@@ -921,6 +1021,28 @@ class GameWorld {
       _obstacleTimer = _lerp(1.9, 0.95, anger) + rng.nextDouble() * 1.0;
     }
 
+    // Power-up pickups, floating at jump height
+    _pickupTimer -= dt;
+    if (_pickupTimer <= 0) {
+      const kinds = [
+        PowerKind.magnet,
+        PowerKind.magnet,
+        PowerKind.doubleCoins,
+        PowerKind.doubleCoins,
+        PowerKind.skate,
+        PowerKind.skate,
+        PowerKind.balloon,
+      ];
+      final x = size.width + 40;
+      final clear = !hazards.any((h) => !h.isSlipper && (h.x - x).abs() < 120);
+      if (clear) {
+        pickups.add(Pickup(kinds[rng.nextInt(kinds.length)], x, floorY - 125));
+        _pickupTimer = 11 + rng.nextDouble() * 8;
+      } else {
+        _pickupTimer = 0.6;
+      }
+    }
+
     // Coin rows
     _coinTimer -= dt;
     if (_coinTimer <= 0) {
@@ -984,18 +1106,39 @@ class GameWorld {
       c.x -= speed * dt;
       // small magnet when close
       final dx = kidX - c.x, dy = (floorY - kidY - 50) - c.y;
-      if (dx.abs() < ability.magnet && dy.abs() < ability.magnet + 10) {
-        c.x += dx * min(1.0, dt * 6);
-        c.y += dy * min(1.0, dt * 6);
+      final reach = magnetT > 0 ? 260.0 : ability.magnet;
+      if (dx.abs() < reach && dy.abs() < reach + 10) {
+        final pull = magnetT > 0 ? 9.0 : 6.0;
+        c.x += dx * min(1.0, dt * pull);
+        c.y += dy * min(1.0, dt * pull);
       }
     }
     coins.removeWhere((c) => c.x < -40);
+
+    for (final pk in pickups) {
+      pk.age += dt;
+      pk.x -= speed * dt;
+    }
+    pickups.removeWhere((pk) => pk.x < -60);
 
     for (final t in texts) {
       t.life -= dt;
       t.y -= dt * 60;
     }
     texts.removeWhere((t) => t.life <= 0);
+  }
+
+  /// The skateboard takes one hit.
+  bool _useSkate() {
+    if (!skating) return false;
+    skateT = 0;
+    invincible = 1.0;
+    shake = 0.4;
+    events.add(GameEvent.shieldBreak);
+    _burst(kidX, floorY - 10, 12, const Color(0xFFFFB531), 4);
+    texts.add(FloatText('اسکیت شکست!', kidX, floorY - kidY - 130,
+        const Color(0xFFFFB531)));
+    return true;
   }
 
   bool _useShield() {
@@ -1022,11 +1165,22 @@ class GameWorld {
       return false;
     });
 
+    pickups.removeWhere((pk) {
+      final py = pk.y + sin(pk.age * 4) * 8;
+      if (kid.inflate(16).contains(Offset(pk.x, py))) {
+        _activate(pk.kind);
+        _burst(pk.x, py, 10, const Color(0xFFA77BFF), 1);
+        return true;
+      }
+      return false;
+    });
+    if (ballooning) return; // floating high above everything
+
     // Dad's belt
     if (whipT > 0 && whipT < 0.6 && !_whipHit && invincible <= 0) {
       if (whipBox.overlaps(kid)) {
         _whipHit = true;
-        if (!_useShield()) {
+        if (!_useSkate() && !_useShield()) {
           _die(null);
           return;
         }
@@ -1055,6 +1209,10 @@ class GameWorld {
             texts.add(FloatText('آخ! اشکال نداره، تمرینه', kidX, floorY - kidY - 130,
                 const Color(0xFFFF5A4E), size: 18));
           }
+          continue;
+        }
+        if (_useSkate()) {
+          hazards.remove(h);
           continue;
         }
         if (_useShield()) {

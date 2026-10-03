@@ -61,6 +61,7 @@ class _GameScreenState extends State<GameScreen>
       DeviceOrientation.landscapeRight,
     ]);
     _w.ability = s.ability;
+    _w.powerDurations = s.boostDurations;
     _w.eventCoinMul = s.weekendEvent ? 2 : 1;
     _w.tutorial = !s.tutorialDone;
     if (_w.tutorial) _hintTime = 0;
@@ -344,6 +345,11 @@ class _GameScreenState extends State<GameScreen>
                   CoinPill(amount: _w.coinsThisRun),
                   const SizedBox(height: 8),
                   _abilityBadge(),
+                  for (final k in PowerKind.values)
+                    if (_w.powerTime(k) > 0) ...[
+                      const SizedBox(height: 6),
+                      _powerTimer(k),
+                    ],
                   if (_w.eventCoinMul > 1) ...[
                     const SizedBox(height: 6),
                     Container(
@@ -390,6 +396,39 @@ class _GameScreenState extends State<GameScreen>
           ),
         ],
       ),
+    );
+  }
+
+  /// An active in-run power-up with a shrinking bar.
+  Widget _powerTimer(PowerKind k) {
+    return Container(
+      height: 30,
+      padding: const EdgeInsetsDirectional.fromSTEB(4, 0, 10, 0),
+      decoration: BoxDecoration(
+        color: const Color(0xE6FFFFFF),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: kSoftShadow,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(
+          width: 26,
+          height: 26,
+          child: CustomPaint(painter: _PowerIconPainter(k)),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 54,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: _w.powerLeft(k),
+              minHeight: 7,
+              backgroundColor: const Color(0xFFF1E4F5),
+              color: C.purple,
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -927,4 +966,17 @@ class _DizzyPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DizzyPainter old) => old.ch != ch;
+}
+
+
+class _PowerIconPainter extends CustomPainter {
+  _PowerIconPainter(this.kind);
+  final PowerKind kind;
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      drawPowerIcon(canvas, kind, size.center(Offset.zero), size.width * 0.45);
+
+  @override
+  bool shouldRepaint(covariant _PowerIconPainter old) => old.kind != kind;
 }

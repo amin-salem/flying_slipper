@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../game/characters.dart';
+import '../game/game_painter.dart' show drawPowerIcon;
+import '../game/world.dart' show PowerKind, powerNames;
 import '../services/ad_service.dart';
 import '../services/audio.dart';
 import '../services/save_data.dart';
@@ -860,6 +862,20 @@ class _PowerTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('توی بازی جمعشون کن · ارتقا = زمان بیشتر',
+              style: kSmall.copyWith(fontSize: 13)),
+        ),
+        for (final k in PowerKind.values) ...[
+          _BoostRow(kind: k),
+          const SizedBox(height: 12),
+        ],
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('کمک‌های قبل از بازی', style: kSmall.copyWith(fontSize: 13)),
+        ),
         _PowerRow(
           icon: Icons.bed_rounded,
           tone: Tone.teal,
@@ -896,6 +912,88 @@ class _PowerTab extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Upgrade row for an in-run power-up (5 levels, longer each time).
+class _BoostRow extends StatelessWidget {
+  const _BoostRow({required this.kind});
+  final PowerKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SaveData.i;
+    final lvl = s.boostLevel(kind);
+    final maxed = lvl >= SaveData.boostMaxLevel;
+    final secs = s.boostDuration(kind).round();
+    return Panel(
+      radius: 22,
+      child: Row(children: [
+        Container(
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3ECFF),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: CustomPaint(painter: _BoostIconPainter(kind)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${powerNames[kind]}  ·  ${fa(secs)} ثانیه',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: C.ink)),
+            const SizedBox(height: 4),
+            Row(children: [
+              for (int l = 1; l <= SaveData.boostMaxLevel; l++)
+                Container(
+                  width: 18,
+                  height: 7,
+                  margin: const EdgeInsetsDirectional.only(end: 3),
+                  decoration: BoxDecoration(
+                    color: l <= lvl ? C.purpleDark : const Color(0x332B1B3A),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+            ]),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        maxed
+            ? const Text('حداکثر', style: TextStyle(fontWeight: FontWeight.w900, color: C.greenDark))
+            : GameButton(
+                tone: Tone.green,
+                height: 42,
+                radius: 14,
+                depth: 4,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                onTap: () {
+                  if (s.upgradeBoost(kind)) {
+                    Audio.i.play(Sfx.powerup);
+                  } else {
+                    _toast(context, 'سکه کافی نداری!');
+                  }
+                },
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const CoinIcon(size: 18),
+                  const SizedBox(width: 4),
+                  Text(fa(SaveData.boostCosts[lvl]), style: const TextStyle(fontSize: 14)),
+                ]),
+              ),
+      ]),
+    );
+  }
+}
+
+class _BoostIconPainter extends CustomPainter {
+  _BoostIconPainter(this.kind);
+  final PowerKind kind;
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      drawPowerIcon(canvas, kind, size.center(Offset.zero), size.width * 0.32);
+
+  @override
+  bool shouldRepaint(covariant _BoostIconPainter old) => old.kind != kind;
 }
 
 class _PowerRow extends StatelessWidget {
