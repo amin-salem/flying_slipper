@@ -1,0 +1,7 @@
+# Replace with your domain (its DNS must point to this server).
+api.example.ir {
+	encode gzip
+	reverse_proxy api:8000 {
+		header_up X-Real-IP {remote_host}
+	}
+}
