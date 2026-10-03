@@ -3,11 +3,16 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /srv
 
-# In Iran, if PyPI is slow/blocked, put a mirror in .env, e.g.
-#   PIP_INDEX_URL=https://mirror.ferdowsi.cloud/artifactory/api/pypi/pip-virtual/simple
+# Packages come from server/wheels/ if you filled it with
+# tools/download_wheels.sh (works without internet), otherwise from PIP_INDEX_URL.
 ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY requirements.txt .
-RUN pip install --no-cache-dir --timeout 120 --retries 10 --index-url "$PIP_INDEX_URL" -r requirements.txt
+COPY wheels/ /wheels/
+RUN if ls /wheels/*.whl >/dev/null 2>&1; then \
+        pip install --no-cache-dir --no-index --find-links /wheels -r requirements.txt; \
+    else \
+        pip install --no-cache-dir --timeout 120 --retries 10 --index-url "$PIP_INDEX_URL" -r requirements.txt; \
+    fi && rm -rf /wheels
 
 COPY app ./app
 COPY alembic ./alembic

@@ -19,8 +19,12 @@ services:
   api:
     build:
       context: .
+      # "host" lets the build use a VPN/proxy running on this computer (BUILD_PROXY)
+      network: host
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+        HTTP_PROXY: ${BUILD_PROXY:-}
+        HTTPS_PROXY: ${BUILD_PROXY:-}
     restart: unless-stopped
     env_file: .env
     environment:

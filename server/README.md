@@ -41,6 +41,10 @@ docker compose up -d --build              # PostgreSQL + API
 docker compose run --rm api alembic upgrade head
 curl http://127.0.0.1:8000/health         # {"ok":true}
 ```
+If the build can't download Python packages (slow PyPI, mirrors missing files):
+* **Offline build:** run `./tools/download_wheels.sh` (run it again until it finishes), then build. The image then installs from `server/wheels/` without internet.
+* **Through your VPN:** put `BUILD_PROXY=http://127.0.0.1:<your proxy port>` in `.env`.
+
 Logs: `docker compose logs -f api` · Stop: `docker compose down` (data is kept; `down -v` deletes it).
 
 ## Put it online (production)
