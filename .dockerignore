@@ -1,0 +1,8 @@
+# Only the server is sent to the Docker build (not the Flutter game).
+*
+!server/
+server/.env
+server/*.db
+server/tests/
+server/wheels/
+server/**/__pycache__/
