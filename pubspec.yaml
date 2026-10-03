@@ -1,7 +1,7 @@
 name: flying_slipper
 description: "دمپایی پرنده - Flying Slipper game"
 publish_to: 'none'
-version: 1.4.0+6
+version: 1.5.0+7
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -13,6 +13,8 @@ dependencies:
   shared_preferences: ^2.2.0
   # Sound effects and music (0.10.6+ supports Android Gradle Plugin 9).
   just_audio: ^0.10.6
+  # Share the result picture to Instagram / Telegram (13.x supports AGP 9).
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:

@@ -11,6 +11,7 @@ import '../services/ad_service.dart';
 import '../services/audio.dart';
 import '../services/missions.dart';
 import '../services/save_data.dart';
+import '../services/share_card.dart';
 import '../services/store_service.dart';
 import '../theme.dart';
 
@@ -822,7 +823,26 @@ class _GameScreenState extends State<GameScreen>
             ),
             const SizedBox(height: 10),
           ],
-          const SizedBox(height: 6),
+          GameButton(
+            tone: Tone.purple,
+            height: 50,
+            onTap: () => ShareCard.shareRun(
+              ch: s.character,
+              meters: _w.meters,
+              coins: _w.coinsThisRun,
+              best: s.best,
+              record: _record,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.share_rounded),
+                SizedBox(width: 8),
+                Text('رکوردم رو به دوستام نشون بده', style: TextStyle(fontSize: 15)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(children: [
             Expanded(
               child: GameButton(
