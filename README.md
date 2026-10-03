@@ -94,6 +94,9 @@ Run `flutter doctor` and send me the output.
 
 ---
 
+## Launching on Cafe Bazaar
+See **docs/LAUNCH.md**: playtest checklist, signing your release APK, store texts and screenshot plan.
+
 ## App icon
 The icon is already inside the project (`android/app/src/main/res/mipmap-*`), including the adaptive version that newer Android phones cut into circles, squircles and so on. Unzipping over your folder replaces Flutter's default blue icon. If the old icon still shows on the phone, uninstall the app once and run `flutter run` again.
 
