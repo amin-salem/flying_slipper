@@ -6,6 +6,18 @@ covered here.
 
 ---
 
+## 0. Building without a VPN (Iranian mirrors)
+
+Google's Android library server blocks Iran. Install the mirror script once:
+```
+mkdir -p ~/.gradle/init.d && cp tools/iran-mirrors.gradle ~/.gradle/init.d/
+cd android && ./gradlew --refresh-dependencies app:assembleDebug && cd ..
+```
+After that `flutter run` works without a VPN (keep the VPN **off**, some
+mirrors only answer Iranian connections).
+
+---
+
 ## 1. Playtest checklist (do this before anything else)
 
 Play at least 20 runs on your phone and, if you can, on one cheap/old phone.

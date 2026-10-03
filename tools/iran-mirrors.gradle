@@ -1,0 +1,38 @@
+// Gradle init script: download Android/Maven libraries from Iranian
+// (and Aliyun) mirrors first, so builds work without a VPN.
+//
+// Install once (Linux/macOS):
+//   mkdir -p ~/.gradle/init.d && cp tools/iran-mirrors.gradle ~/.gradle/init.d/
+// Windows: copy it to  C:\Users\<you>\.gradle\init.d\
+//
+// It applies to every Gradle build on this computer, including all Flutter
+// plugins. Delete the file to go back to normal.
+// Mirror list: https://github.com/hosseinmasoumi/hosseinmasoumi-android-gradle-repos-iran
+
+def mirrors = [
+    'https://maven.myket.ir',
+    'https://maven.aliyun.com/repository/google',
+    'https://maven.aliyun.com/repository/gradle-plugin',
+    'https://maven.aliyun.com/repository/public',
+]
+
+// Put the mirrors at the FRONT of a repository list.
+def addMirrors = { repos ->
+    mirrors.reverse().each { u ->
+        def r = repos.maven { url u }
+        repos.remove(r)
+        repos.addFirst(r)
+    }
+}
+
+// Before settings.gradle(.kts) runs: plugins like com.android.application
+beforeSettings { settings ->
+    addMirrors(settings.pluginManagement.repositories)
+    addMirrors(settings.dependencyResolutionManagement.repositories)
+}
+
+// Before each project (the app and every Flutter plugin) is configured
+beforeProject { project ->
+    addMirrors(project.buildscript.repositories)
+    addMirrors(project.repositories)
+}
