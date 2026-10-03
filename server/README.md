@@ -47,6 +47,33 @@ If the build can't download Python packages (slow PyPI, mirrors missing files):
 
 Logs: `docker compose logs -f api` · Stop: `docker compose down` (data is kept; `down -v` deletes it).
 
+## Deploy on Liara
+
+`liara.json` in this folder is ready. The app builds from the `Dockerfile` in Liara's Germany build location, so PyPI and Docker Hub work normally. On every start the container updates the database tables (`alembic upgrade head`) and then starts the API.
+
+1. In the Liara console, use a **Docker** app and a **PostgreSQL** database, in the same region/network.
+2. In the app's **Environment variables**, add:
+   ```
+   ENV=prod
+   DATABASE_URL=<the PostgreSQL URL from the database page; "postgresql://..." is fine>
+   JWT_SECRET=<python3 -c "import secrets; print(secrets.token_urlsafe(48))">
+   ADMIN_API_KEY=<another random string from the same command>
+   AUTO_CREATE_TABLES=false
+   BAZAAR_MODE=api_secret
+   BAZAAR_PACKAGE_NAME=<your app package>
+   BAZAAR_API_SECRET=<from the Bazaar panel>
+   ```
+   Until the real Bazaar payments are added to the app, you can test with `ENV=dev` and `BAZAAR_MODE=fake`. Don't release the app like that.
+3. Put your app's name in `liara.json` (`"app"`), then deploy:
+   ```bash
+   npm install -g @liara/cli
+   liara login
+   cd server
+   liara deploy
+   ```
+4. In **Domains**, add your domain, set the DNS record Liara shows you, and turn on SSL.
+5. Check that `https://<your domain>/health` returns `{"ok":true}`.
+
 ## Put it online (production)
 
 1. Get a Linux server (VPS) with Docker. A server **inside Iran** is best, so players connect fast and the Bazaar API is easy to reach. Examples are ArvanCloud, Pars Pack and Hamravesh, or a platform like Liara.

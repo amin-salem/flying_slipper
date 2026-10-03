@@ -18,11 +18,12 @@ RUN if ls /wheels/*.whl >/dev/null 2>&1; then \
 
 COPY app ./app
 COPY alembic ./alembic
-COPY alembic.ini .
+COPY alembic.ini start.sh ./
 
 RUN useradd --create-home appuser
 USER appuser
 
 EXPOSE 8000
-# 2 worker processes; raise for a bigger server (about 2 x CPU cores)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers"]
+# start.sh runs "alembic upgrade head" (creates/updates tables) then uvicorn.
+# Worker processes: WEB_CONCURRENCY (default 2, about 2 x CPU cores).
+CMD ["sh", "./start.sh"]

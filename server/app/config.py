@@ -1,6 +1,7 @@
 """All server settings, read from environment variables (or a .env file)."""
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEV_JWT = "change-me-dev-only"
@@ -35,6 +36,16 @@ class Settings(BaseSettings):
 
     cors_origins: str = "*"
     rate_limit: bool = True
+
+    @field_validator("database_url")
+    @classmethod
+    def _async_driver(cls, v: str) -> str:
+        """Liara (and most hosts) give "postgresql://..." or "postgres://...";
+        SQLAlchemy async needs "postgresql+asyncpg://..."."""
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+asyncpg://" + v[len(prefix):]
+        return v
 
     def check_production(self) -> None:
         if self.env == "prod":
