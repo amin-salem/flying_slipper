@@ -1,4 +1,6 @@
-FROM python:3.12-slim
+# In Iran Docker Hub is often blocked: IMAGE_PREFIX=docker-mirror.liara.ir/library/ (in .env)
+ARG IMAGE_PREFIX=
+FROM ${IMAGE_PREFIX}python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /srv

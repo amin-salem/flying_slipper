@@ -3,7 +3,7 @@
 #   on the server    : docker compose --profile prod up -d --build
 services:
   db:
-    image: postgres:16-alpine
+    image: ${IMAGE_PREFIX:-}postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: slipper
@@ -22,6 +22,7 @@ services:
       # "host" lets the build use a VPN/proxy running on this computer (BUILD_PROXY)
       network: host
       args:
+        IMAGE_PREFIX: ${IMAGE_PREFIX:-}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
         HTTP_PROXY: ${BUILD_PROXY:-}
         HTTPS_PROXY: ${BUILD_PROXY:-}
@@ -41,7 +42,7 @@ services:
   # HTTPS for production only. Start it with:  docker compose --profile prod up -d
   caddy:
     profiles: ["prod"]
-    image: caddy:2-alpine
+    image: ${IMAGE_PREFIX:-}caddy:2-alpine
     restart: unless-stopped
     ports:
       - "80:80"

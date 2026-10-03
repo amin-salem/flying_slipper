@@ -6,7 +6,7 @@
 # stops - files that are already downloaded are skipped.
 #
 #   ./tools/download_wheels.sh                       # from pypi.org
-#   PIP_INDEX_URL=https://some-mirror/simple ./tools/download_wheels.sh
+#   PIP_INDEX_URL=https://package-mirror.liara.ir/repository/pypi/simple/ ./tools/download_wheels.sh
 #   HTTPS_PROXY=http://127.0.0.1:10809 ./tools/download_wheels.sh   # through your VPN
 set -e
 cd "$(dirname "$0")/.."
