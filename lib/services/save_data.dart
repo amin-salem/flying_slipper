@@ -85,6 +85,7 @@ class SaveData extends ChangeNotifier {
   String equippedBelt = 'belt_classic';
   int vipUntil = 0; // unix seconds, set by the server (0 = not from server)
   int cloudVersion = 0; // last save version the server confirmed
+  bool askedReturning = false; // asked "did you play before?" on this phone
 
   Future<void> load() async {
     _p = await SharedPreferences.getInstance();
@@ -147,6 +148,7 @@ class SaveData extends ChangeNotifier {
     currentBelt = beltById(equippedBelt);
     vipUntil = _p.getInt('vipUntil') ?? 0;
     cloudVersion = _p.getInt('cloudVersion') ?? 0;
+    askedReturning = _p.getBool('askedReturning') ?? false;
     _checkVip();
   }
 
@@ -198,6 +200,11 @@ class SaveData extends ChangeNotifier {
     await _p.setInt('vipUntil', vipUntil);
     await _p.setInt('cloudVersion', cloudVersion);
     if (upload) onSaved?.call();
+  }
+
+  void setAskedReturning() {
+    askedReturning = true;
+    _p.setBool('askedReturning', true);
   }
 
   /// Redraw screens that show save data (e.g. after the inbox changed).

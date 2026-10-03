@@ -131,6 +131,9 @@ class Api {
   String nickname = '';
   String inviteCode = '';
   bool referred = false;
+  String? phone; // masked, e.g. 0912***4567
+  String? username;
+  bool secured = false; // can be recovered on another phone
   int inboxCount = 0;
 
   Timer? _syncTimer;
@@ -272,6 +275,9 @@ class Api {
       nickname = '${j['nickname']}';
       inviteCode = '${j['invite_code']}';
       referred = j['referred'] == true;
+      phone = j['phone'] as String?;
+      username = j['username'] as String?;
+      secured = j['secured'] == true;
       final vip = j['vip_until'];
       if (vip is int && vip != SaveData.i.vipUntil) {
         SaveData.i.applyGrants([{'type': 'vip_until', 'ts': vip}]);
@@ -508,6 +514,115 @@ class Api {
     } catch (_) {
       return 'اتصال به سرور برقرار نیست';
     }
+  }
+
+  // ---------------------------------------------------------------- permanent account
+
+  static String _err(Object? detail) {
+    final d = detail is Map ? detail['error'] : detail;
+    return switch (d) {
+      'bad_phone' => 'شماره موبایل درست نیست',
+      'wait' => 'یه کم صبر کن و دوباره کد بخواه',
+      'too_many_codes' => 'تعداد درخواست کد زیاد شد، یک ساعت دیگه امتحان کن',
+      'sms_failed' => 'ارسال پیامک انجام نشد، دوباره امتحان کن',
+      'code_expired' => 'کد منقضی شده، دوباره کد بگیر',
+      'wrong_code' => 'کد اشتباهه',
+      'too_many_attempts' => 'چند بار اشتباه زدی، کد جدید بگیر',
+      'phone_taken' => 'این شماره به یه حساب دیگه وصله',
+      'no_account' => 'با این شماره حسابی پیدا نشد',
+      'bad_username' => 'نام کاربری: ۳ تا ۱۶ حرف انگلیسی یا عدد، با حرف شروع بشه',
+      'bad_password' => 'رمز باید حداقل ۶ حرف باشه',
+      'username_taken' => 'این نام کاربری قبلاً گرفته شده',
+      'username_cant_change' => 'نام کاربری رو نمی‌شه عوض کرد',
+      'wrong_login' => 'نام کاربری یا رمز اشتباهه',
+      'banned' => 'این حساب مسدود شده',
+      'too_many_requests' => 'خیلی سریع امتحان کردی، کمی صبر کن',
+      _ => 'خطا، دوباره امتحان کن',
+    };
+  }
+
+  /// Asks the server to send an SMS code. Returns (seconds to wait, dev code, error).
+  Future<(int, String?, String?)> sendOtp(String phoneNumber) async {
+    if (!await _reconnect()) return (0, null, 'اتصال به سرور برقرار نیست');
+    try {
+      final j = await _call('POST', '/v1/account/otp', auth: false, body: {'phone': phoneNumber})
+          as Map<String, dynamic>;
+      return ((j['retry_after'] as int?) ?? 60, j['dev_code'] as String?, null);
+    } on ApiException catch (e) {
+      final wait = e.detail is Map ? ((e.detail as Map)['retry_after'] as int? ?? 0) : 0;
+      return (wait, null, _err(e.detail));
+    } catch (_) {
+      return (0, null, 'اتصال به سرور برقرار نیست');
+    }
+  }
+
+  /// Links a phone number to this account. Returns (reward text, error, phone belongs to another account).
+  Future<(String?, String?, bool)> linkPhone(String phoneNumber, String code) async {
+    try {
+      final j = await _call('POST', '/v1/account/phone', body: {'phone': phoneNumber, 'code': code})
+          as Map<String, dynamic>;
+      _readProfile((j['profile'] as Map).cast<String, dynamic>());
+      final grants = (j['grants'] as List?) ?? const [];
+      return (grants.isEmpty ? '' : SaveData.i.applyGrants(grants), null, false);
+    } on ApiException catch (e) {
+      return (null, _err(e.detail), e.detail == 'phone_taken');
+    } catch (_) {
+      return (null, 'اتصال به سرور برقرار نیست', false);
+    }
+  }
+
+  /// Chooses a username + password (or changes the password). Returns (reward text, error).
+  Future<(String?, String?)> setUsername(String name, String password) async {
+    try {
+      final j = await _call('POST', '/v1/account/username', body: {'username': name, 'password': password})
+          as Map<String, dynamic>;
+      _readProfile((j['profile'] as Map).cast<String, dynamic>());
+      final grants = (j['grants'] as List?) ?? const [];
+      return (grants.isEmpty ? '' : SaveData.i.applyGrants(grants), null);
+    } on ApiException catch (e) {
+      return (null, _err(e.detail));
+    } catch (_) {
+      return (null, 'اتصال به سرور برقرار نیست');
+    }
+  }
+
+  /// Logs in to an existing account with an SMS code (progress on this phone is replaced).
+  Future<String?> loginWithPhone(String phoneNumber, String code) => _loginWith(
+      '/v1/account/login/phone', {'phone': phoneNumber, 'code': code});
+
+  /// Logs in to an existing account with username + password.
+  Future<String?> loginWithPassword(String name, String password) => _loginWith(
+      '/v1/account/login/password', {'username': name, 'password': password});
+
+  Future<String?> _loginWith(String path, Map<String, dynamic> body) async {
+    if (!enabled) return 'اتصال به سرور برقرار نیست';
+    try {
+      final j = await _call('POST', path, auth: false, body: {...body, 'device_id': _deviceId()})
+          as Map<String, dynamic>;
+      await _storeLogin(j);
+      _ready = true;
+      final save = await _call('GET', '/v1/save') as Map<String, dynamic>;
+      final data = (save['data'] as Map).cast<String, dynamic>();
+      if (data.isNotEmpty) {
+        await SaveData.i.importJson(data, save['version'] as int);
+      } else {
+        await SaveData.i.setCloudVersion(save['version'] as int);
+      }
+      await refreshProfile();
+      await refreshInbox();
+      return null;
+    } on ApiException catch (e) {
+      return _err(e.detail);
+    } catch (_) {
+      return 'اتصال به سرور برقرار نیست';
+    }
+  }
+
+  void _readProfile(Map<String, dynamic> j) {
+    phone = j['phone'] as String?;
+    username = j['username'] as String?;
+    secured = j['secured'] == true;
+    SaveData.i.refresh();
   }
 
   // ---------------------------------------------------------------- analytics

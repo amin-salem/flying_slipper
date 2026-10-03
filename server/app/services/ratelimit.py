@@ -16,6 +16,8 @@ LIMITS = {
     "/v1/auth/login": (60, 600),
     "/v1/auth/transfer": (10, 600),
     "/v1/referrals": (10, 600),
+    "/v1/account/login": (20, 600),
+    "/v1/account/otp": (10, 600),
     "/v1/": (600, 60),
 }
 

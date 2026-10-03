@@ -11,6 +11,7 @@ import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../theme.dart';
 import 'game_screen.dart';
+import 'account_screen.dart';
 import 'house_screen.dart';
 import 'online_screens.dart';
 import 'rewards.dart';
@@ -46,7 +47,9 @@ class _HomeScreenState extends State<HomeScreen>
     Api.i.started?.then((_) {
       if (!mounted) return;
       setState(() {});
-      checkServerNotice(context);
+      checkServerNotice(context).then((_) {
+        if (mounted) askReturningPlayer(context);
+      });
     });
   }
 
@@ -179,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(height: 6),
                   Center(child: _RankBadge(s: s)),
                   const OnlineRow(),
+                  const SecureBanner(),
                   if (currentSeason() != Season.none)
                     Center(
                       child: Container(
@@ -568,6 +572,18 @@ class _SettingsSheet extends StatelessWidget {
             child: const Text('آموزش رو دوباره ببینم', style: TextStyle(fontSize: 15)),
           ),
           if (Api.i.enabled) ...[
+            const SizedBox(height: 8),
+            GameButton(
+              tone: Api.i.secured ? Tone.white : Tone.gold,
+              height: 46,
+              onTap: () {
+                final nav = Navigator.of(context);
+                nav.pop();
+                nav.push(MaterialPageRoute(builder: (_) => const AccountScreen()));
+              },
+              child: Text(Api.i.secured ? 'حساب کاربری' : 'حساب کاربری · امنش کن!',
+                  style: const TextStyle(fontSize: 15)),
+            ),
             const SizedBox(height: 8),
             GameButton(
               tone: Tone.teal,

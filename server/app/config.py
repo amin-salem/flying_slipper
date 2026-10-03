@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     bazaar_client_secret: str = ""
     bazaar_refresh_token: str = ""
 
+    # SMS codes for phone accounts: fake (dev: code is shown in the API answer
+    # and the log) | kavenegar | smsir
+    sms_provider: str = "fake"
+    kavenegar_api_key: str = ""
+    kavenegar_template: str = ""      # a "verify lookup" template with %token
+    sms_ir_api_key: str = ""
+    sms_ir_template_id: int = 0       # a verify template with one parameter
+    sms_ir_param: str = "CODE"        # the parameter name in that template
+
     # Anti-cheat
     suspicious_threshold: int = 3  # players at/above this are hidden from leaderboards
 

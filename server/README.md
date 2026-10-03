@@ -5,6 +5,7 @@ The backend for «دمپایی پرنده». The game still works **offline**. T
 | Feature | What it does |
 |---|---|
 | **Accounts** | No password. The phone registers once and keeps a secret. Players can move their account to a new phone with a one-time code. |
+| **Permanent accounts** | Players start as guests, like Quiz of Kings. They can secure the account with a **phone number (SMS code)** and/or a **username + password**, and get 500 coins the first time. They can then log in on any phone and get all their progress back. |
 | **Cloud save** | The phone uploads its save. If two phones save at once, the server keeps both copies apart (version numbers) and the app decides which to keep. |
 | **Anti-cheat** | The server compares each new save with the last one. If coins or XP jump more than possible, the player is flagged and hidden from leaderboards. The save itself is never deleted. |
 | **Leaderboards** | Weekly (resets Saturday 00:00 Tehran time) and all-time. The server recomputes the score itself and rejects impossible runs (too fast, too many coins, faster than real time). |
@@ -114,6 +115,33 @@ In the Bazaar developer panel (پیشخوان توسعه‌دهندگان), open
 * **Old method:** create an OAuth client and get a refresh token, then set `BAZAAR_MODE=oauth` and the three `BAZAAR_CLIENT_*` / `BAZAAR_REFRESH_TOKEN` values.
 
 All Bazaar URLs and the header name are in `app/services/bazaar.py`. Before launch, compare them with Bazaar's current documentation at developers.cafebazaar.ir (In-app billing, then API).
+
+## SMS codes (phone accounts)
+
+Phone login needs an Iranian SMS service. Both of these have a fast "verify" route made for one-time codes, which also reaches numbers that blocked advertising SMS.
+
+* **Kavenegar:** in the panel, create a verification ("Verify Lookup") template whose text contains `%token`, for example:
+  `کد ورود شما به دمپایی پرنده: %token`
+  Then set:
+  ```
+  SMS_PROVIDER=kavenegar
+  KAVENEGAR_API_KEY=...
+  KAVENEGAR_TEMPLATE=<template name>
+  ```
+* **SMS.ir:** create a verify template with one parameter named `CODE`. Then set:
+  ```
+  SMS_PROVIDER=smsir
+  SMS_IR_API_KEY=...
+  SMS_IR_TEMPLATE_ID=<id>
+  ```
+
+Templates usually need the provider's approval first, which can take a few hours. Until then, `SMS_PROVIDER=fake` with `ENV=dev` shows the code in the app, so you can test.
+
+Built-in limits:
+* codes expire after 3 minutes
+* 5 wrong tries per code
+* one code per minute and 5 per hour for each number
+* 20 codes per hour for each IP address
 
 ## Admin examples
 

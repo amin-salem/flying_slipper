@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import db
 from .config import get_settings
-from .routers import admin, auth, inbox, meta, profile, purchases, runs
+from .routers import account, admin, auth, inbox, meta, profile, purchases, runs
 from .services.ratelimit import RateLimitMiddleware
 
 
@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    for r in (meta.router, auth.router, profile.router, runs.router, purchases.router,
+    for r in (meta.router, auth.router, account.router, profile.router, runs.router, purchases.router,
               inbox.router, admin.router):
         app.include_router(r)
     return app

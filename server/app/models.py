@@ -33,6 +33,12 @@ class Player(Base):
     referred_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
     invites_rewarded: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Permanent account (optional): phone number (SMS code) and/or username + password
+    phone: Mapped[str | None] = mapped_column(String(15), unique=True, nullable=True)
+    username: Mapped[str | None] = mapped_column(String(24), unique=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    secure_rewarded: Mapped[bool] = mapped_column(Boolean, default=False)
+
     vip_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     banned: Mapped[bool] = mapped_column(Boolean, default=False)
     suspicious: Mapped[int] = mapped_column(Integer, default=0)
@@ -180,3 +186,19 @@ class Event(Base):
     name: Mapped[str] = mapped_column(String(48))
     props: Mapped[dict] = mapped_column(JSON, default=dict)
     ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class OtpCode(Base):
+    """An SMS code sent to a phone number (stored hashed)."""
+
+    __tablename__ = "otp_codes"
+    __table_args__ = (Index("ix_otp_phone_created", "phone", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    phone: Mapped[str] = mapped_column(String(15))
+    code_hash: Mapped[str] = mapped_column(String(64))
+    ip: Mapped[str] = mapped_column(String(64), default="")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)

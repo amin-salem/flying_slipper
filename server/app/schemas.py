@@ -52,6 +52,9 @@ class ProfileOut(BaseModel):
     referred: bool
     vip_until: int | None
     created_at: int
+    phone: str | None = None      # masked, e.g. 0912***4567
+    username: str | None = None
+    secured: bool = False         # has a phone or username (can be recovered)
 
 
 class ProfileIn(BaseModel):
@@ -174,3 +177,37 @@ class GiftIn(BaseModel):
 
 class ConfigIn(BaseModel):
     values: dict[str, Any]
+
+
+# ---- permanent accounts
+class OtpIn(BaseModel):
+    phone: str = Field(min_length=10, max_length=20)
+
+
+class OtpOut(BaseModel):
+    sent: bool
+    retry_after: int  # seconds before another code can be asked
+    dev_code: str | None = None  # only in development with the fake SMS provider
+
+
+class PhoneCodeIn(BaseModel):
+    phone: str = Field(min_length=10, max_length=20)
+    code: str = Field(min_length=4, max_length=8)
+
+
+class PhoneLoginIn(PhoneCodeIn):
+    device_id: str = Field(min_length=4, max_length=128)
+
+
+class UsernameIn(BaseModel):
+    username: str = Field(min_length=3, max_length=16)
+    password: str = Field(min_length=6, max_length=64)
+
+
+class PasswordLoginIn(UsernameIn):
+    device_id: str = Field(min_length=4, max_length=128)
+
+
+class SecureOut(BaseModel):
+    profile: ProfileOut
+    grants: list[dict] = []  # reward for securing the account (first time only)
