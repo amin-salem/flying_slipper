@@ -45,8 +45,9 @@ async def new_player(client, device="device-1234"):
 
 def pytest_collection_modifyitems(items):
     """Run every async test in the same event loop as the database fixture."""
+    import inspect
+
     session_loop = pytest.mark.asyncio(loop_scope="session")
     for item in items:
-        if item.get_closest_marker("asyncio") is None and hasattr(item, "obj") and \
-                __import__("inspect").iscoroutinefunction(item.obj):
-            item.add_marker(session_loop)
+        if inspect.iscoroutinefunction(getattr(item, "obj", None)):
+            item.add_marker(session_loop, append=False)  # first marker wins
