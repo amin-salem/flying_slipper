@@ -20,7 +20,7 @@ router = APIRouter(tags=["meta"])
 @router.get("/health")
 async def health(session: AsyncSession = Depends(get_session)):
     await session.execute(text("SELECT 1"))
-    return {"ok": True}
+    return {"ok": True, "version": "1.0.1"}
 
 
 @router.get("/v1/config")

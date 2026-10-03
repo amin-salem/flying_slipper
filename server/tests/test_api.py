@@ -8,7 +8,7 @@ from .conftest import ADMIN, new_player
 
 
 async def test_health_and_config(client):
-    assert (await client.get("/health")).json() == {"ok": True}
+    assert (await client.get("/health")).json()["ok"] is True
     cfg = (await client.get("/v1/config")).json()
     assert cfg["min_version"] >= 1 and "server_time" in cfg and "prices" in cfg
 
