@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../game/characters.dart';
+import '../game/room_decor.dart';
 import '../services/audio.dart';
 import '../services/missions.dart';
 import '../services/save_data.dart';
@@ -118,6 +119,26 @@ class _HomeScreenState extends State<HomeScreen>
                   ]),
                   const SizedBox(height: 6),
                   _Title(anim: _anim),
+                  if (currentSeason() != Season.none)
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: currentSeason() == Season.yalda
+                              ? const Color(0xFFC62828)
+                              : const Color(0xFF2E9B4E),
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: kSoftShadow,
+                        ),
+                        child: Text(
+                            currentSeason() == Season.yalda
+                                ? 'شب یلدا مبارک! خونه تزئین شده'
+                                : 'نوروز مبارک! خونه تزئین شده',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900, color: C.white)),
+                      ),
+                    ),
                   if (s.weekendEvent)
                     Center(
                       child: Container(

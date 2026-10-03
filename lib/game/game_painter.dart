@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'characters.dart';
 import 'house_decor.dart';
+import 'room_decor.dart';
 import 'world.dart';
 
 /// Draws one frame of the game.
@@ -59,96 +60,65 @@ class GamePainter extends CustomPainter {
 
   // ---------------------------------------------------------------- scene
 
+  /// Which room the wall/floor at world-distance [units] belongs to.
+  Room _room(double units) => units < 0 ? Room.living : roomForMeters(units / 40);
+
   void _background(Canvas c, Size size) {
     final floorY = w.floorY;
-    final wallRect = Rect.fromLTWH(0, 0, size.width, floorY);
-    c.drawRect(
-        wallRect,
-        Paint()
-          ..shader = const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFFFF3DD), C.wall, C.wallShade],
-            stops: [0, 0.6, 1],
-          ).createShader(wallRect));
-
-    // Tile frieze near the ceiling
     final winTop = max(floorY * 0.2, floorY - 430);
     final winH = min(300.0, floorY - 110 - winTop);
     final friezeY = max(14.0, winTop - 56);
-    c.drawRect(Rect.fromLTWH(0, friezeY, size.width, 34), Paint()..color = const Color(0xFF1C8C9E));
-    c.drawRect(Rect.fromLTWH(0, friezeY - 4, size.width, 4), Paint()..color = C.rugGold);
-    c.drawRect(Rect.fromLTWH(0, friezeY + 34, size.width, 4), Paint()..color = C.rugGold);
-    final fs = (w.traveled * 0.2) % 40;
-    final star = Paint()..color = const Color(0xFFFFF3DD);
-    final dot = Paint()..color = const Color(0xFF0E5F70);
-    for (double x = -fs; x < size.width + 40; x += 40) {
-      c.drawPath(starPath(Offset(x, friezeY + 17), 11), star);
-      c.drawCircle(Offset(x, friezeY + 17), 3.5, dot);
-      c.drawCircle(Offset(x + 20, friezeY + 17), 2.5, star);
-    }
 
-    // The family wall: stained-glass windows, wedding photo, baby photo,
-    // calligraphy, Grandpa, the bad report card... (scrolls a bit slower)
+    // ---- Wall: each slot belongs to a room (scrolls at half speed) ----
     const slotW = 230.0;
     final scroll = w.traveled * 0.5;
     final first = (scroll / slotW).floor();
     final slotH = floorY - 60 - winTop;
-    for (int k = first; k * slotW - scroll < size.width + slotW; k++) {
+    Room? prev;
+    for (int k = first - 1; k * slotW - scroll < size.width + slotW; k++) {
       final x = k * slotW - scroll;
-      final item = WallItem.values[k % WallItem.values.length];
-      if (item == WallItem.orosi) {
-        _orosi(c, Rect.fromLTWH(x + 40, winTop, 150, winH));
+      // the wall moves at half speed: this slot is above the kid when
+      // traveled == 2 * (k * slotW - kidX)
+      final room = _room((k * slotW - w.kidX) * 2);
+      drawWallBase(c, room, Rect.fromLTWH(x, 0, slotW + 0.5, floorY), friezeY);
+      if (room == Room.living) {
+        final item = WallItem.values[k.abs() % WallItem.values.length];
+        if (item == WallItem.orosi) {
+          _orosi(c, Rect.fromLTWH(x + 40, winTop, 150, winH));
+        } else {
+          drawWallItem(c, item, Rect.fromLTWH(x, winTop, slotW, slotH), w.time);
+        }
       } else {
-        drawWallItem(c, item, Rect.fromLTWH(x, winTop, slotW, slotH), w.time);
+        drawRoomItem(c, room, k.abs(), Rect.fromLTWH(x, winTop, slotW, slotH), w.time);
       }
+      if (prev != null && prev != room) {
+        drawDoorway(c, x, max(friezeY + 44, floorY - 260), floorY);
+      }
+      prev = room;
     }
 
-    // Cushions (poshti) along the wall – mid layer
-    final cushionY = floorY - 46;
+    // seasonal garland (Yalda / Nowruz)
+    drawSeasonGarland(c, currentSeason(), scroll, size.width, friezeY + 40, w.time);
+
+    // ---- Along the wall: cushions / counters / flower beds ----
     c.drawRect(Rect.fromLTWH(0, floorY - 10, size.width, 10),
-        Paint()..color = const Color(0xFFE2BE8C));
-    final cs = (w.traveled * 0.6) % 600;
-    for (double x = -cs; x < size.width + 600; x += 600) {
-      for (int i = 0; i < 4; i++) {
-        _cushion(c, Rect.fromLTWH(x + i * 62, cushionY, 58, 40),
-            i.isEven ? C.rug : C.rugNavy);
-      }
-      _plant(c, Offset(x + 330, floorY - 10));
+        Paint()..color = const Color(0x22000000));
+    const segW = 600.0;
+    final ms = w.traveled * 0.6;
+    final firstSeg = (ms / segW).floor();
+    for (int k = firstSeg; k * segW - ms < size.width + segW; k++) {
+      final x = k * segW - ms;
+      drawMidSegment(c, _room((k * segW - w.kidX) / 0.6), x, floorY, w.time);
     }
 
-    // Persian rug floor
-    final rug = Rect.fromLTRB(0, floorY, size.width, size.height);
-    c.drawRect(rug, Paint()..color = C.rug);
-    c.drawRect(Rect.fromLTWH(0, floorY, size.width, 14), Paint()..color = C.rugNavy);
-    c.drawRect(Rect.fromLTWH(0, floorY + 14, size.width, 5), Paint()..color = C.rugGold);
-    final rs = w.traveled % 90;
-    final gold = Paint()..color = C.rugGold;
-    final navy = Paint()..color = C.rugNavy;
-    final dark = Paint()..color = C.rugDark;
-    final cream = Paint()..color = const Color(0xFFF7E3C0);
-    for (double x = -rs; x < size.width + 90; x += 90) {
-      // little triangles on the border
-      c.drawPath(
-          Path()
-            ..moveTo(x, floorY + 14)
-            ..lineTo(x + 8, floorY + 4)
-            ..lineTo(x + 16, floorY + 14)
-            ..close(),
-          gold);
-      // medallions
-      final cy = floorY + (size.height - floorY) * 0.45;
-      final d = Path()
-        ..moveTo(x + 45, cy - 30)
-        ..lineTo(x + 75, cy)
-        ..lineTo(x + 45, cy + 30)
-        ..lineTo(x + 15, cy)
-        ..close();
-      c.drawPath(d, navy);
-      c.drawPath(starPath(Offset(x + 45, cy), 16), dark);
-      c.drawPath(starPath(Offset(x + 45, cy), 8), gold);
-      c.drawCircle(Offset(x, cy - 34), 4, cream);
-      c.drawCircle(Offset(x, cy + 34), 4, cream);
+    // ---- Floor (moves at full speed) ----
+    const tileW = 90.0;
+    final firstTile = (w.traveled / tileW).floor();
+    for (int j = firstTile; j * tileW - w.traveled < size.width + tileW; j++) {
+      final x = j * tileW - w.traveled;
+      // the floor under the kid changes exactly when the distance counter
+      // reaches the next room
+      drawFloorTile(c, _room(j * tileW - w.kidX), x, floorY, size.height);
     }
     // soft shadow where wall meets floor
     c.drawRect(
@@ -210,39 +180,6 @@ class GamePainter extends CustomPainter {
           ..color = const Color(0xFF5E3820)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 5);
-  }
-
-  void _cushion(Canvas c, Rect r, Color color) {
-    final rr = RRect.fromRectAndRadius(r, const Radius.circular(12));
-    c.drawRRect(rr.shift(const Offset(0, 4)), Paint()..color = const Color(0x33000000));
-    c.drawRRect(rr, Paint()..color = color);
-    c.drawRRect(rr.deflate(6), Paint()
-      ..color = C.rugGold
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5);
-    c.drawPath(starPath(r.center, 8), Paint()..color = C.rugGold);
-  }
-
-  void _plant(Canvas c, Offset base) {
-    final leaf = Paint()..color = const Color(0xFF2E9B4E);
-    for (int i = 0; i < 5; i++) {
-      final a = -pi / 2 + (i - 2) * 0.45;
-      c.drawOval(
-          Rect.fromCenter(
-              center: base + Offset(cos(a) * 26, -44 + sin(a) * 26),
-              width: 16,
-              height: 34),
-          leaf);
-    }
-    final pot = Path()
-      ..moveTo(base.dx - 18, base.dy - 40)
-      ..lineTo(base.dx + 18, base.dy - 40)
-      ..lineTo(base.dx + 13, base.dy)
-      ..lineTo(base.dx - 13, base.dy)
-      ..close();
-    c.drawPath(pot, Paint()..color = const Color(0xFF1C8C9E));
-    c.drawRect(Rect.fromLTWH(base.dx - 20, base.dy - 44, 40, 8),
-        Paint()..color = const Color(0xFF0E5F70));
   }
 
   // ---------------------------------------------------------------- items

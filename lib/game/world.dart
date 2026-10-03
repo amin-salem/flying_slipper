@@ -259,6 +259,8 @@ class GameWorld {
   int slippersDodged = 0; // slippers and remotes that flew past
   int beltsDodged = 0;
   int get meters => traveled ~/ 40;
+  int _lastRoom = 0;
+  static const _roomNames = ['اتاق نشیمن', 'آشپزخونه', 'حیاط'];
 
   // States
   bool shield = false;
@@ -365,6 +367,7 @@ class GameWorld {
     tilt = 0;
     kickCd = 0;
     traveled = 0;
+    _lastRoom = 0;
     speed = 270;
     anger = 0.15;
     time = 0;
@@ -540,6 +543,13 @@ class GameWorld {
     speed = _lerp(270, 560, anger) * ability.speedMul;
     traveled += speed * dt;
     runPhase += dt * speed / 19;
+    // announce a new room (same 450 m rooms as the painter)
+    final room = (meters / 450).floor() % 3;
+    if (room != _lastRoom) {
+      _lastRoom = room;
+      texts.add(FloatText('به ${_roomNames[room]} رسیدی!', size.width / 2,
+          floorY - 260, const Color(0xFF1C8C9E), size: 24));
+    }
     if (kickCd > 0) kickCd = max(0, kickCd - dt);
     if (ability.shieldRegen > 0 && !shield) {
       _shieldTimer += dt;
