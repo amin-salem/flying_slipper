@@ -33,6 +33,7 @@ class GamePainter extends CustomPainter {
     _coins(canvas);
     _pickups(canvas);
     _giftBoxes(canvas);
+    _letters(canvas);
     _obstacles(canvas);
     _parent(canvas);
     _warning(canvas);
@@ -190,6 +191,23 @@ class GamePainter extends CustomPainter {
     for (final coin in w.coins) {
       final sq = 0.35 + 0.65 * cos(w.time * 5 + coin.x / 60).abs();
       paintCoin(c, Offset(coin.x, coin.y), 12, sq);
+    }
+  }
+
+  void _letters(Canvas c) {
+    for (final l in w.letters) {
+      final p = Offset(l.x, l.y + sin(l.age * 3.5) * 6);
+      final glow = 0.5 + 0.5 * sin(l.age * 6);
+      c.drawCircle(p, 32 + glow * 4,
+          Paint()..color = Color.fromARGB((50 + glow * 60).round(), 38, 198, 190));
+      final tile = RRect.fromRectAndRadius(Rect.fromCenter(center: p, width: 46, height: 50), const Radius.circular(12));
+      c.drawRRect(tile.shift(const Offset(0, 4)), Paint()..color = C.tealEdge);
+      c.drawRRect(tile, Paint()..color = C.white);
+      c.drawRRect(tile, Paint()
+        ..color = C.teal
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3);
+      _outlinedText(c, l.letter, p + const Offset(0, -2), 30, C.tealDark, stroke: false);
     }
   }
 

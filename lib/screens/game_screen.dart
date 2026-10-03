@@ -65,6 +65,8 @@ class _GameScreenState extends State<GameScreen>
     ]);
     _w.ability = s.ability;
     _w.powerDurations = s.boostDurations;
+    _w.wordLetters = lettersOf(s.todayWord);
+    _w.wordIndex = s.todayWordProgress;
     _w.eventCoinMul = s.weekendEvent ? 2 : 1;
     _w.tutorial = !s.tutorialDone;
     if (_w.tutorial) _hintTime = 0;
@@ -135,6 +137,14 @@ class _GameScreenState extends State<GameScreen>
           break;
         case GameEvent.crack:
           Audio.i.play(Sfx.crack, volume: 0.9);
+          break;
+        case GameEvent.letter:
+          Audio.i.play(Sfx.coin);
+          if (s.setWordProgress(_w.wordIndex)) {
+            Audio.i.play(Sfx.reward);
+            _w.texts.add(FloatText('+${fa(kWordReward)} سکه و یه جعبه شانس!',
+                _w.size.width / 2, _w.floorY - 300, C.goldDark, size: 22));
+          }
           break;
         case GameEvent.shout:
           Audio.i.playVoice(_w.shoutKey);
@@ -283,6 +293,8 @@ class _GameScreenState extends State<GameScreen>
     Audio.i.setMusicVolume(0.45);
     setState(() {
       _w.ability = s.ability;
+      _w.wordLetters = lettersOf(s.todayWord);
+      _w.wordIndex = s.todayWordProgress;
       _w.reset();
       _doubled = false;
       _record = false;
@@ -374,6 +386,7 @@ class _GameScreenState extends State<GameScreen>
               const Spacer(),
               Column(children: [
                 OutlinedTitle(fa(_w.meters), size: 38),
+                if (_w.wordLetters.isNotEmpty && !_w.tutorial) _wordStrip(),
                 const Text('متر',
                     style: TextStyle(
                         color: C.ink,
@@ -403,6 +416,37 @@ class _GameScreenState extends State<GameScreen>
           ),
         ],
       ),
+    );
+  }
+
+  /// Today's word, collected letters filled in.
+  Widget _wordStrip() {
+    return Container(
+      margin: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xE6FFFFFF),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: kSoftShadow,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        for (int i = 0; i < _w.wordLetters.length; i++)
+          Container(
+            width: 20,
+            height: 24,
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: i < _w.wordIndex ? C.teal : const Color(0xFFF1E4F5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(_w.wordLetters[i],
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: i < _w.wordIndex ? C.white : const Color(0x552B1B3A))),
+          ),
+      ]),
     );
   }
 

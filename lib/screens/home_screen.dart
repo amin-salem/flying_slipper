@@ -727,10 +727,47 @@ class _MissionsSheet extends StatelessWidget {
                 _row(context, missions[i], i),
                 const SizedBox(height: 10),
               ],
+              _wordCard(),
             ]),
           ),
         );
       },
+    );
+  }
+
+  Widget _wordCard() {
+    final s = SaveData.i;
+    final letters = lettersOf(s.todayWord);
+    final got = s.todayWordProgress;
+    return Panel(
+      radius: 20,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      gradient: const LinearGradient(colors: [Color(0xFFDFF7F5), Color(0xFFBDEDE9)]),
+      child: Column(children: [
+        Text(s.wordDone ? 'کلمه امروز رو کامل کردی!' : 'کلمه امروز: حرف‌ها رو توی بازی جمع کن',
+            style: const TextStyle(fontWeight: FontWeight.w900, color: C.tealEdge)),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (int i = 0; i < letters.length; i++)
+            Container(
+              width: 30,
+              height: 34,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: i < got ? C.teal : C.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(i < got ? letters[i] : '؟',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: i < got ? C.white : const Color(0x552B1B3A))),
+            ),
+        ]),
+        const SizedBox(height: 6),
+        Text('جایزه: ${fa(kWordReward)} سکه + یه جعبه شانس', style: kSmall.copyWith(fontSize: 12)),
+      ]),
     );
   }
 

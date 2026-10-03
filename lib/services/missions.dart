@@ -108,3 +108,23 @@ String _fa(int n) {
       })
       .join();
 }
+
+
+// ---------------------------------------------------------------- word hunt
+
+/// Words for the daily word hunt (no spaces, no half-spaces).
+const List<String> kHuntWords = [
+  'دمپایی', 'کمربند', 'سماور', 'یلدا', 'نوروز', 'انار', 'حافظ', 'کارنامه',
+  'شیطون', 'پسته', 'زعفران', 'گربه', 'قالیچه', 'استکان', 'مادربزرگ', 'حیاط',
+  'ماهی', 'سبزه', 'فرار', 'جاخالی',
+];
+
+/// Today's word: the same all day, different every day.
+String wordFor(DateTime day) {
+  final seed = day.year * 1000 + day.month * 40 + day.day;
+  return kHuntWords[Random(seed * 7 + 3).nextInt(kHuntWords.length)];
+}
+
+List<String> lettersOf(String word) => word.split('');
+
+const int kWordReward = 500;

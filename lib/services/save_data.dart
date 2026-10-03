@@ -48,6 +48,8 @@ class SaveData extends ChangeNotifier {
   bool tutorialDone = false;
   int piggy = 0; // coins waiting in the piggy bank
   int mysteryBoxes = 0;
+  String wordDay = '';
+  int wordProgress = 0; // letters of today's word collected
   int starterOfferStart = 0; // when the 24h starter offer began (ms)
   Map<String, int> powerLevels = {}; // character id -> 1..3
   Map<String, int> boostLevels = {}; // in-run power-up name -> 1..5
@@ -81,6 +83,8 @@ class SaveData extends ChangeNotifier {
     };
     piggy = _p.getInt('piggy') ?? 0;
     mysteryBoxes = _p.getInt('mysteryBoxes') ?? 0;
+    wordDay = _p.getString('wordDay') ?? '';
+    wordProgress = _p.getInt('wordProgress') ?? 0;
     starterOfferStart = _p.getInt('starterOfferStart') ?? 0;
     boostLevels = {
       for (final e in _p.getStringList('boostLevels') ?? const <String>[])
@@ -123,6 +127,8 @@ class SaveData extends ChangeNotifier {
         [for (final e in powerLevels.entries) '${e.key}:${e.value}']);
     await _p.setInt('piggy', piggy);
     await _p.setInt('mysteryBoxes', mysteryBoxes);
+    await _p.setString('wordDay', wordDay);
+    await _p.setInt('wordProgress', wordProgress);
     await _p.setInt('starterOfferStart', starterOfferStart);
     await _p.setStringList('boostLevels',
         [for (final e in boostLevels.entries) '${e.key}:${e.value}']);
@@ -263,6 +269,34 @@ class SaveData extends ChangeNotifier {
     lastDaily = _today;
     _save();
     return r;
+  }
+
+  // ---- Daily word hunt ----
+  String get todayWord => wordFor(DateTime.now());
+
+  int get todayWordProgress {
+    if (wordDay != _today) {
+      wordDay = _today;
+      wordProgress = 0;
+    }
+    return wordProgress;
+  }
+
+  bool get wordDone => todayWordProgress >= lettersOf(todayWord).length;
+
+  /// Saves how many letters are collected; gives the prize when complete.
+  /// Returns true if the word was just finished.
+  bool setWordProgress(int n) {
+    final before = todayWordProgress;
+    final len = lettersOf(todayWord).length;
+    wordProgress = n < 0 ? 0 : (n > len ? len : n);
+    final finished = before < len && wordProgress >= len;
+    if (finished) {
+      coins += kWordReward;
+      mysteryBoxes += 1;
+    }
+    _save();
+    return finished;
   }
 
   // ---- Mystery boxes & prizes ----

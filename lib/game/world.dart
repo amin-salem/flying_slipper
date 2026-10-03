@@ -18,6 +18,7 @@ enum GameEvent {
   crack, // belt crack
   parentSwap,
   tutorialDone,
+  letter, // a letter of the daily word was collected
   shout, // a parent says something (see [GameWorld.shoutKey] for the voice file)
 }
 
@@ -41,6 +42,15 @@ const powerNames = {
   PowerKind.skate: 'اسکیت',
   PowerKind.balloon: 'بادکنک',
 };
+
+/// A letter tile of the daily word.
+class LetterItem {
+  LetterItem(this.letter, this.x, this.y);
+  final String letter;
+  double x;
+  double y;
+  double age = 0;
+}
 
 /// A mystery gift box floating in the run.
 class GiftBox {
@@ -217,6 +227,13 @@ class GameWorld {
   };
   final List<Pickup> pickups = [];
   final List<GiftBox> giftBoxes = [];
+
+  // ---- Daily word hunt: letters appear one at a time, in order ----
+  List<String> wordLetters = const []; // set by the screen before reset
+  int wordIndex = 0; // how many letters are already collected
+  final List<LetterItem> letters = [];
+  double _letterTimer = 12;
+  bool get wordComplete => wordLetters.isEmpty || wordIndex >= wordLetters.length;
   int boxesThisRun = 0;
   double _boxTimer = 30;
   double magnetT = 0, doubleT = 0, skateT = 0, balloonT = 0;
@@ -297,6 +314,10 @@ class GameWorld {
     for (final b in giftBoxes) {
       b.x += dx;
       b.y += dy;
+    }
+    for (final l in letters) {
+      l.x += dx;
+      l.y += dy;
     }
   }
 
@@ -505,6 +526,8 @@ class GameWorld {
     pickups.clear();
     giftBoxes.clear();
     boxesThisRun = 0;
+    letters.clear();
+    _letterTimer = 10 + rng.nextDouble() * 6;
     _boxTimer = 25 + rng.nextDouble() * 15;
     magnetT = doubleT = skateT = balloonT = 0;
     _pickupTimer = 8;
@@ -1039,6 +1062,21 @@ class GameWorld {
       _obstacleTimer = _lerp(1.9, 0.95, anger) + rng.nextDouble() * 1.0;
     }
 
+    // Next letter of the daily word (one on screen at a time)
+    if (!wordComplete && letters.isEmpty) {
+      _letterTimer -= dt;
+      if (_letterTimer <= 0) {
+        final x = size.width + 40;
+        if (!hazards.any((h) => !h.isSlipper && (h.x - x).abs() < 110)) {
+          final high = rng.nextBool();
+          letters.add(LetterItem(wordLetters[wordIndex], x, floorY - (high ? 140 : 60)));
+          _letterTimer = 14 + rng.nextDouble() * 10;
+        } else {
+          _letterTimer = 0.6;
+        }
+      }
+    }
+
     // Mystery gift boxes (rare), up high: a real jump to reach
     _boxTimer -= dt;
     if (_boxTimer <= 0) {
@@ -1155,6 +1193,11 @@ class GameWorld {
       b.x -= speed * dt;
     }
     giftBoxes.removeWhere((b) => b.x < -60);
+    for (final l in letters) {
+      l.age += dt;
+      l.x -= speed * dt;
+    }
+    letters.removeWhere((l) => l.x < -60);
 
     for (final t in texts) {
       t.life -= dt;
@@ -1205,6 +1248,19 @@ class GameWorld {
       if (kid.inflate(16).contains(Offset(pk.x, py))) {
         _activate(pk.kind);
         _burst(pk.x, py, 10, const Color(0xFFA77BFF), 1);
+        return true;
+      }
+      return false;
+    });
+    letters.removeWhere((l) {
+      final ly = l.y + sin(l.age * 3.5) * 6;
+      if (kid.inflate(16).contains(Offset(l.x, ly))) {
+        wordIndex++;
+        events.add(GameEvent.letter);
+        _burst(l.x, ly, 10, const Color(0xFF26C6BE), 1);
+        texts.add(FloatText(
+            wordComplete ? 'کلمه کامل شد!' : 'حرف «${l.letter}»',
+            kidX + 20, floorY - kidY - 140, const Color(0xFF1C8C9E), size: 24));
         return true;
       }
       return false;
