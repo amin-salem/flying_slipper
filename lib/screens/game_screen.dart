@@ -9,6 +9,7 @@ import '../game/game_painter.dart';
 import '../game/world.dart';
 import '../services/ad_service.dart';
 import '../services/audio.dart';
+import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../theme.dart';
 
@@ -39,6 +40,10 @@ class _GameScreenState extends State<GameScreen>
   bool _doubled = false;
   bool _record = false;
   int _committedCoins = 0;
+  // what was already sent to the daily missions (a run can continue after an ad)
+  int _recNear = 0, _recSlip = 0, _recBelt = 0, _recJumps = 0, _recCoins = 0;
+  bool _recGame = false;
+  final List<Mission> _missionsDone = [];
   String _momLine = _gameOverLines.first;
 
   SaveData get s => SaveData.i;
@@ -146,6 +151,23 @@ class _GameScreenState extends State<GameScreen>
     _committedCoins = _w.coinsThisRun;
     _record = s.submitScore(_w.meters) || _record;
     _momLine = _gameOverLines[Random().nextInt(_gameOverLines.length)];
+    // daily missions
+    final done = s.recordRun(RunStats(
+      meters: _w.meters,
+      coins: _w.coinsThisRun - _recCoins,
+      nearMisses: _w.nearMisses - _recNear,
+      slippersDodged: _w.slippersDodged - _recSlip,
+      beltsDodged: _w.beltsDodged - _recBelt,
+      jumps: _w.jumps - _recJumps,
+      games: _recGame ? 0 : 1,
+    ));
+    _recCoins = _w.coinsThisRun;
+    _recNear = _w.nearMisses;
+    _recSlip = _w.slippersDodged;
+    _recBelt = _w.beltsDodged;
+    _recJumps = _w.jumps;
+    _recGame = true;
+    _missionsDone.addAll(done);
   }
 
   void _useGrandma() {
@@ -184,6 +206,9 @@ class _GameScreenState extends State<GameScreen>
       _doubled = false;
       _record = false;
       _committedCoins = 0;
+      _recNear = _recSlip = _recBelt = _recJumps = _recCoins = 0;
+      _recGame = false;
+      _missionsDone.clear();
       _hintTime = 0;
     });
   }
@@ -608,6 +633,28 @@ class _GameScreenState extends State<GameScreen>
                   style: kBody.copyWith(fontWeight: FontWeight.w900)),
             ),
           ),
+          for (final m in _missionsDone) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F6EC),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: C.greenDark, width: 1.5),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.task_alt_rounded, color: C.greenDark, size: 18),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text('ماموریت انجام شد: ${m.title}',
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w800, color: C.greenDark)),
+                  ),
+                ]),
+              ),
+            ),
+          ],
           if (_record) ...[
             const SizedBox(height: 12),
             Center(

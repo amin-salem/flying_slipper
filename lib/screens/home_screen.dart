@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../game/characters.dart';
 import '../services/audio.dart';
+import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../theme.dart';
 import 'game_screen.dart';
@@ -61,6 +62,15 @@ class _HomeScreenState extends State<HomeScreen>
         insetPadding: EdgeInsets.all(16),
         child: _LoginCalendar(),
       ),
+    );
+  }
+
+  void _openMissions() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => const _MissionsSheet(),
     );
   }
 
@@ -169,6 +179,13 @@ class _HomeScreenState extends State<HomeScreen>
                         icon: Icons.face_retouching_natural,
                         tone: Tone.purple,
                         onTap: () => _openShop(1)),
+                    const SizedBox(width: 10),
+                    _NavCard(
+                        label: 'ماموریت‌ها',
+                        icon: Icons.flag_rounded,
+                        tone: Tone.red,
+                        badge: s.missionsToClaim > 0,
+                        onTap: _openMissions),
                     const SizedBox(width: 10),
                     _NavCard(
                         label: 'جایزه روزانه',
@@ -609,6 +626,111 @@ class _LoginCalendarState extends State<_LoginCalendar> {
             left: 0,
             child: Icon(Icons.check_circle_rounded, color: C.greenDark, size: 22),
           ),
+      ]),
+    );
+  }
+}
+
+
+/// Today's 3 missions with progress bars and a claim button.
+class _MissionsSheet extends StatelessWidget {
+  const _MissionsSheet();
+
+  String _timeLeft() {
+    final now = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day + 1);
+    final d = midnight.difference(now);
+    return '${fa(d.inHours)} ساعت و ${fa(d.inMinutes % 60)} دقیقه';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SaveData.i;
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) {
+        final missions = s.missions;
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+          decoration: BoxDecoration(
+            color: C.cream,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: kSoftShadow,
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const OutlinedTitle('ماموریت‌های امروز', size: 28, fill: C.red),
+              const SizedBox(height: 4),
+              Text('ماموریت‌های جدید تا ${_timeLeft()} دیگه',
+                  style: kSmall.copyWith(fontSize: 12)),
+              const SizedBox(height: 14),
+              for (int i = 0; i < missions.length; i++) ...[
+                _row(context, missions[i], i),
+                const SizedBox(height: 10),
+              ],
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _row(BuildContext context, Mission m, int i) {
+    final s = SaveData.i;
+    final progress = s.missionProgress[i].clamp(0, m.target);
+    final done = progress >= m.target;
+    final claimed = s.missionClaimed[i];
+    return Panel(
+      radius: 20,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(m.title,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w900, color: C.ink)),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progress / m.target,
+                minHeight: 10,
+                backgroundColor: const Color(0xFFF1E4F5),
+                color: done ? C.green : C.goldDark,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text('${fa(progress)} از ${fa(m.target)}', style: kSmall.copyWith(fontSize: 11)),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 96,
+          child: claimed
+              ? const Column(children: [
+                  Icon(Icons.check_circle_rounded, color: C.greenDark, size: 30),
+                  Text('گرفتی', style: TextStyle(fontWeight: FontWeight.w800, color: C.greenDark)),
+                ])
+              : GameButton(
+                  tone: done ? Tone.green : Tone.white,
+                  height: 44,
+                  radius: 14,
+                  depth: 4,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  onTap: done
+                      ? () {
+                          if (s.claimMission(i)) Audio.i.play(Sfx.reward);
+                        }
+                      : null,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const CoinIcon(size: 18),
+                    const SizedBox(width: 4),
+                    Text(fa(m.reward), style: const TextStyle(fontSize: 15)),
+                  ]),
+                ),
+        ),
       ]),
     );
   }

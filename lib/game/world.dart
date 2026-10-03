@@ -240,6 +240,9 @@ class GameWorld {
   double time = 0;
   int coinsThisRun = 0;
   int nearMisses = 0;
+  int jumps = 0;
+  int slippersDodged = 0; // slippers and remotes that flew past
+  int beltsDodged = 0;
   int get meters => traveled ~/ 40;
 
   // States
@@ -351,6 +354,9 @@ class GameWorld {
     time = 0;
     coinsThisRun = 0;
     nearMisses = 0;
+    jumps = 0;
+    slippersDodged = 0;
+    beltsDodged = 0;
     shield = ability.startShield;
     invincible = 0;
     grandmaFlash = 0;
@@ -423,6 +429,7 @@ class GameWorld {
     squashX = 0.78;
     squashY = 1.25;
     events.add(GameEvent.jump);
+    jumps++;
     if (air) {
       flip = 1;
       _burst(kidX, floorY - kidY - 20, 8, const Color(0xFFFF6FA8), 1);
@@ -598,7 +605,10 @@ class GameWorld {
       whipT += dt / whipDur;
       if (whipT >= 1) {
         whipT = 0;
-        if (!_whipHit) _checkWhipNearMiss();
+        if (!_whipHit) {
+          beltsDodged++;
+          _checkWhipNearMiss();
+        }
       }
     }
 
@@ -1005,6 +1015,7 @@ class GameWorld {
       // near miss: something flew past very close
       if (h.isSlipper && !h.passed && h.x > kidX + 24) {
         h.passed = true;
+        if (!tutorial) slippersDodged++;
         final gap = box.top > kid.bottom
             ? box.top - kid.bottom
             : (kid.top > box.bottom ? kid.top - box.bottom : 0.0);

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/characters.dart';
+import 'missions.dart';
 
 /// One day's prize in the 7-day login calendar.
 class DailyReward {
@@ -35,6 +36,9 @@ class SaveData extends ChangeNotifier {
   bool soundOn = true;
   bool musicOn = true;
   bool tutorialDone = false;
+  String missionDay = '';
+  List<int> missionProgress = [0, 0, 0];
+  List<bool> missionClaimed = [false, false, false];
 
   Future<void> load() async {
     _p = await SharedPreferences.getInstance();
@@ -56,6 +60,13 @@ class SaveData extends ChangeNotifier {
     musicOn = _p.getBool('musicOn') ?? true;
     // players who already played before the tutorial existed skip it
     tutorialDone = _p.getBool('tutorialDone') ?? (gamesPlayed > 0);
+    missionDay = _p.getString('missionDay') ?? '';
+    final mp = _p.getStringList('missionProgress') ?? const ['0', '0', '0'];
+    missionProgress = [for (final v in mp) int.tryParse(v) ?? 0];
+    final mc = _p.getStringList('missionClaimed') ?? const ['0', '0', '0'];
+    missionClaimed = [for (final v in mc) v == '1'];
+    if (missionProgress.length != 3) missionProgress = [0, 0, 0];
+    if (missionClaimed.length != 3) missionClaimed = [false, false, false];
 
     // Older versions used different character ids.
     owned.add('ali');
@@ -82,6 +93,11 @@ class SaveData extends ChangeNotifier {
     await _p.setBool('soundOn', soundOn);
     await _p.setBool('musicOn', musicOn);
     await _p.setBool('tutorialDone', tutorialDone);
+    await _p.setString('missionDay', missionDay);
+    await _p.setStringList(
+        'missionProgress', [for (final v in missionProgress) '$v']);
+    await _p.setStringList(
+        'missionClaimed', [for (final v in missionClaimed) v ? '1' : '0']);
   }
 
   Character get character => characterById(skin);
@@ -170,6 +186,52 @@ class SaveData extends ChangeNotifier {
     lastDaily = _today;
     _save();
     return r;
+  }
+
+  // ---- Daily missions ----
+  /// Today's 3 missions (progress resets every day).
+  List<Mission> get missions {
+    if (missionDay != _today) {
+      missionDay = _today;
+      missionProgress = [0, 0, 0];
+      missionClaimed = [false, false, false];
+    }
+    return missionsFor(DateTime.now());
+  }
+
+  bool missionDone(int i) => missionProgress[i] >= missions[i].target;
+
+  int get missionsToClaim {
+    final m = missions;
+    int n = 0;
+    for (int i = 0; i < m.length; i++) {
+      if (!missionClaimed[i] && missionProgress[i] >= m[i].target) n++;
+    }
+    return n;
+  }
+
+  /// Adds a run's results; returns the missions that were just completed.
+  List<Mission> recordRun(RunStats r) {
+    final m = missions;
+    final done = <Mission>[];
+    for (int i = 0; i < m.length; i++) {
+      final before = missionProgress[i];
+      missionProgress[i] = m[i].progressFrom(r, before);
+      if (before < m[i].target && missionProgress[i] >= m[i].target) {
+        done.add(m[i]);
+      }
+    }
+    _save();
+    return done;
+  }
+
+  bool claimMission(int i) {
+    final m = missions;
+    if (missionClaimed[i] || missionProgress[i] < m[i].target) return false;
+    missionClaimed[i] = true;
+    coins += m[i].reward;
+    _save();
+    return true;
   }
 
   // ---- Free coins for watching ads (5 per day) ----
