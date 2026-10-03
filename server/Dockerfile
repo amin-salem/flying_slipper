@@ -3,11 +3,11 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /srv
 
-# In Iran, if PyPI is slow/blocked, build with:
-#   docker compose build --build-arg PIP_INDEX_URL=https://mirror-pypi.runflare.com/simple
+# In Iran, if PyPI is slow/blocked, put a mirror in .env, e.g.
+#   PIP_INDEX_URL=https://mirror.ferdowsi.cloud/artifactory/api/pypi/pip-virtual/simple
 ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY requirements.txt .
-RUN pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.txt
+RUN pip install --no-cache-dir --timeout 120 --index-url "$PIP_INDEX_URL" -r requirements.txt
 
 COPY app ./app
 COPY alembic ./alembic

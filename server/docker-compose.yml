@@ -1,7 +1,6 @@
-# Production setup: PostgreSQL + the API + Caddy (automatic HTTPS).
-#   1. cp .env.example .env   and fill it in (ENV=prod, strong secrets, Bazaar keys)
-#   2. put your domain in Caddyfile
-#   3. docker compose up -d --build
+# PostgreSQL + the API (+ Caddy for HTTPS in production). See README.md.
+#   on your computer : docker compose up -d --build
+#   on the server    : docker compose --profile prod up -d --build
 services:
   db:
     image: postgres:16-alpine
@@ -18,16 +17,26 @@ services:
       retries: 10
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://slipper:${POSTGRES_PASSWORD:-change-me}@db:5432/slipper
+      # tables are made by "alembic upgrade head" (see README), not on start
+      AUTO_CREATE_TABLES: "false"
+    ports:
+      # 127.0.0.1 = only this computer. Set API_BIND=0.0.0.0 in .env to test from your phone.
+      - "${API_BIND:-127.0.0.1}:8000:8000"
     depends_on:
       db:
         condition: service_healthy
 
+  # HTTPS for production only. Start it with:  docker compose --profile prod up -d
   caddy:
+    profiles: ["prod"]
     image: caddy:2-alpine
     restart: unless-stopped
     ports:

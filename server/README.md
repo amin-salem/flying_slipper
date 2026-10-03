@@ -32,6 +32,17 @@ uvicorn app.main:app --reload --host 0.0.0.0
 
 In development, `BAZAAR_MODE=fake` accepts any purchase token that starts with `test-`.
 
+## Run it with Docker on your computer
+
+```bash
+cd server
+cp .env.example .env                      # defaults are fine for testing
+docker compose up -d --build              # PostgreSQL + API
+docker compose run --rm api alembic upgrade head
+curl http://127.0.0.1:8000/health         # {"ok":true}
+```
+Logs: `docker compose logs -f api` · Stop: `docker compose down` (data is kept; `down -v` deletes it).
+
 ## Put it online (production)
 
 1. Get a Linux server (VPS) with Docker. A server **inside Iran** is best, so players connect fast and the Bazaar API is easy to reach. Examples are ArvanCloud, Pars Pack and Hamravesh, or a platform like Liara.
@@ -48,9 +59,9 @@ In development, `BAZAAR_MODE=fake` accepts any purchase token that starts with `
    * `AUTO_CREATE_TABLES=false`
    * `BAZAAR_MODE`, `BAZAAR_PACKAGE_NAME` and the Bazaar keys (see below)
 3. Point a domain at the server (for example `api.yourgame.ir`) and write it in `Caddyfile`.
-4. Start everything:
+4. Start everything (the `prod` profile adds Caddy for HTTPS):
    ```bash
-   docker compose up -d --build
+   docker compose --profile prod up -d --build
    docker compose run --rm api alembic upgrade head   # creates the tables (first time, and after updates)
    ```
 5. Check that `https://api.yourgame.ir/health` returns `{"ok": true}`.
@@ -60,7 +71,7 @@ In production, the server **refuses to start** if the secrets are still the defa
 To update the server later:
 ```bash
 git pull
-docker compose up -d --build
+docker compose --profile prod up -d --build
 docker compose run --rm api alembic upgrade head
 ```
 
