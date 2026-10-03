@@ -134,6 +134,8 @@ Later we'll swap the two test files for **Tapsell** (ads) and **Cafe Bazaar Pool
   - orange **«صبر کن...»** – it bounces off the rug: jump late
   - **«دوتا!»** – two low slippers in a row: jump twice
 - Dodge a slipper by a hair for **«جاخالی!» +3 coins** and a slow-motion moment.
+- After about 20 seconds **Dad shows up** (with his belt!) and Mom and Dad take turns. Dad twirls his belt and cracks it along the floor (**jump**) or at head height (**stay down**), and sometimes throws the TV remote.
+- Every kid has a **special power**: Sara double-jumps, Omid sees attacks earlier, the sleepy kid slows the world, the football kid kicks obstacles away, the Nowruz kid gets double coins, and the superhero can fly and starts with a shield.
 - **Pillow (بالش):** blocks one hit. **Grandma (مادربزرگ):** clears the screen and calms Mom down.
 - The further you run, the angrier Mom gets: faster game, trickier throws.
 

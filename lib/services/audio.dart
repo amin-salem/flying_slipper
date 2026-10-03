@@ -15,6 +15,9 @@ enum Sfx {
   gameover,
   click,
   reward,
+  crack,
+  kick,
+  dad,
 }
 
 /// Plays sound effects and the background music (uses the just_audio plugin).

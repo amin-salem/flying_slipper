@@ -14,20 +14,50 @@ enum GameEvent {
   powerup,
   shieldBreak,
   death,
+  kick,
+  crack, // belt crack
+  parentSwap,
 }
 
-enum ObstacleKind { vase, ball, books, samovar }
+/// Who is chasing right now.
+enum Parent { mom, dad }
 
-/// How Mom throws.
-/// low: straight at your legs -> JUMP.  high: at head height -> DON'T jump.
-/// bounce: hits the rug and bounces at you -> jump late.  twin: two low ones.
-enum ThrowKind { low, high, bounce, twin }
+enum ObstacleKind { vase, ball, books, samovar, teaTray, cat, geranium }
+
+/// Attacks.
+/// Mom: low (JUMP), high (DON'T jump), bounce (jump late), twin (two low).
+/// Dad: whipLow (belt at your feet: JUMP), whipHigh (belt at head: DON'T),
+///      remote (throws the TV remote low: JUMP).
+enum ThrowKind { low, high, bounce, twin, whipLow, whipHigh, remote }
+
+/// Special power of a character (see characters.dart).
+class Ability {
+  const Ability({
+    this.doubleJump = false,
+    this.warnBonus = 1.0,
+    this.kickCooldown = 0,
+    this.speedMul = 1.0,
+    this.coinMul = 1,
+    this.glide = false,
+    this.startShield = false,
+  });
+  final bool doubleJump; // jump again in the air
+  final double warnBonus; // longer warning before attacks
+  final double kickCooldown; // seconds between automatic kicks (0 = none)
+  final double speedMul; // game speed multiplier
+  final int coinMul; // coins per coin
+  final bool glide; // hold while falling to float
+  final bool startShield; // begins every run with a pillow shield
+}
 
 Size obstacleSize(ObstacleKind k) => switch (k) {
       ObstacleKind.vase => const Size(44, 62),
       ObstacleKind.ball => const Size(36, 36),
       ObstacleKind.books => const Size(56, 40),
       ObstacleKind.samovar => const Size(46, 72),
+      ObstacleKind.teaTray => const Size(66, 26),
+      ObstacleKind.cat => const Size(60, 36),
+      ObstacleKind.geranium => const Size(42, 58),
     };
 
 class Hazard {
@@ -40,21 +70,24 @@ class Hazard {
       : isSlipper = true,
         kind = null;
 
-  final bool isSlipper;
+  final bool isSlipper; // any flying thing (slipper or TV remote)
   final ObstacleKind? kind;
   final ThrowKind? throwKind;
   double x; // center x
-  double y; // obstacles: floor y under them; slippers: center y
+  double y; // obstacles: floor y under them; flying: center y
   double vx;
   double vy;
   double rot = 0;
   double age = 0;
   bool bounced = false;
   bool passed = false;
+  bool kicked = false; // kicked away by the football kid
+
+  bool get isRemote => throwKind == ThrowKind.remote;
 
   /// Ball obstacles hop up and down.
   double get hop =>
-      kind == ObstacleKind.ball ? (sin(age * 6.5).abs()) * 46 : 0;
+      kind == ObstacleKind.ball && !kicked ? (sin(age * 6.5).abs()) * 46 : 0;
 
   Rect get hitbox {
     if (isSlipper) {
@@ -107,9 +140,19 @@ const momLines = [
   'صد بار گفتم!',
 ];
 
+const dadLines = [
+  'صبر کن ببینم!',
+  'کمربندم کو؟!',
+  'به مامانت چی گفتی؟',
+  'امروز حسابت رسیدس!',
+  'فکر کردی من حواسم نیست؟',
+  'بیا اینجا بچه!',
+];
+
 /// All game rules live here. The screen draws this and forwards input.
 class GameWorld {
   final Random rng = Random();
+
   /// Size of the visible world in game units (not pixels).
   Size size = Size.zero;
 
@@ -118,6 +161,9 @@ class GameWorld {
   double zoom = 1;
   bool landscape = false;
   final List<GameEvent> events = [];
+
+  /// The selected character's special power. Set before [reset].
+  Ability ability = const Ability();
 
   double get floorY => size.height * (landscape ? 0.8 : 0.70);
   double get kidX => size.width * (landscape ? 0.3 : 0.36);
@@ -154,6 +200,7 @@ class GameWorld {
       t.y += dy;
     }
   }
+
   static const double kidScale = 1.0;
 
   // ---- Jump tuning ----
@@ -170,11 +217,20 @@ class GameWorld {
   bool holding = false;
   double _holdTime = 0;
   double _buffer = 0;
+  bool _usedDouble = false;
+  bool gliding = false;
+  double flip = 0; // 1..0 somersault after a double jump
   bool get onGround => kidY <= 0.01 && kidVy <= 0;
   double runPhase = 0;
   double squashX = 1, squashY = 1;
   double tilt = 0;
   double blinkTimer = 2;
+  double kickCd = 0; // football kid: seconds until next kick is ready
+
+  /// 0..1 how charged the kick is (1 = ready). For the HUD.
+  double get kickReady => ability.kickCooldown <= 0
+      ? 0
+      : (1 - kickCd / ability.kickCooldown).clamp(0.0, 1.0);
 
   // Progress
   double traveled = 0;
@@ -189,22 +245,68 @@ class GameWorld {
   bool shield = false;
   double invincible = 0;
   double grandmaFlash = 0;
-  double calm = 0; // Mom calmed down by grandma
+  double calm = 0; // parents calmed down by grandma
   double dying = 0;
   bool dead = false;
   bool usedContinue = false;
   double shake = 0;
   double _slowmo = 0;
 
-  // Mom
-  double windup = 0; // 0..1 while preparing a throw
+  // ---- Parents ----
+  Parent chaser = Parent.mom;
+  Parent _outgoing = Parent.mom;
+  double swapTimer = 0; // > 0 while one parent leaves and the other arrives
+  double _nextSwap = 0;
+  static const double swapDur = 1.6;
+
+  /// The parent currently drawn (during a swap, first the old one leaves).
+  Parent get shownParent => swapTimer > swapDur / 2 ? _outgoing : chaser;
+
+  /// Extra x offset of the shown parent while walking off/on screen.
+  double get parentSlide {
+    if (swapTimer <= 0) return 0;
+    const half = swapDur / 2;
+    return swapTimer > half
+        ? -(swapDur - swapTimer) / half * 260
+        : -(swapTimer / half) * 260;
+  }
+
+  double windup = 0; // 0..1 while preparing an attack
   double _windupDur = 0.7;
-  double release = 0; // 1..0 after throwing
+  double release = 0; // 1..0 after throwing / whipping
   ThrowKind _nextThrow = ThrowKind.low;
   ThrowKind? get warning => windup > 0 ? _nextThrow : null;
   String shout = '';
   double shoutTimer = 0;
-  double get momX => kidX - 150 + anger * 30 + sin(time * 1.3) * 8;
+  double get parentX =>
+      kidX - 150 + anger * 30 + sin(time * 1.3) * 8 + parentSlide;
+
+  /// Angle of the twirling slipper / belt above the parent's head.
+  double twirl = 0;
+
+  // Dad's belt whip
+  double whipT = 0; // 0 = idle, then 0..1 during a crack
+  bool whipHigh = false;
+  bool _whipHit = false;
+  static const double whipDur = 0.5;
+  double get whipY => floorY - (whipHigh ? 112 : 34);
+  double get whipStartX => parentX + 44;
+  double get whipTipX {
+    if (whipT <= 0) return whipStartX;
+    final full = kidX + 80;
+    final double e;
+    if (whipT < 0.25) {
+      e = Curves2.easeOut(whipT / 0.25);
+    } else if (whipT < 0.55) {
+      e = 1;
+    } else {
+      e = 1 - (whipT - 0.55) / 0.45;
+    }
+    return whipStartX + (full - whipStartX) * e;
+  }
+
+  Rect get whipBox => Rect.fromLTRB(
+      whipStartX, whipY - 9, max(whipStartX + 1, whipTipX), whipY + 9);
 
   // Spawning
   final List<Hazard> hazards = [];
@@ -217,8 +319,7 @@ class GameWorld {
   double _secondThrow = 0;
   double _trailTimer = 0;
 
-  Rect get kidHitbox => Rect.fromLTWH(
-      kidX - 12, floorY - kidY - 92, 26, 88);
+  Rect get kidHitbox => Rect.fromLTWH(kidX - 12, floorY - kidY - 92, 26, 88);
 
   void reset() {
     kidY = 0;
@@ -226,15 +327,19 @@ class GameWorld {
     holding = false;
     _holdTime = 0;
     _buffer = 0;
+    _usedDouble = false;
+    gliding = false;
+    flip = 0;
     squashX = squashY = 1;
     tilt = 0;
+    kickCd = 0;
     traveled = 0;
     speed = 270;
     anger = 0.15;
     time = 0;
     coinsThisRun = 0;
     nearMisses = 0;
-    shield = false;
+    shield = ability.startShield;
     invincible = 0;
     grandmaFlash = 0;
     calm = 0;
@@ -243,8 +348,13 @@ class GameWorld {
     usedContinue = false;
     shake = 0;
     _slowmo = 0;
+    chaser = Parent.mom;
+    _outgoing = Parent.mom;
+    swapTimer = 0;
+    _nextSwap = 20; // Dad shows up after ~20 seconds
     windup = 0;
     release = 0;
+    whipT = 0;
     shout = '';
     shoutTimer = 0;
     hazards.clear();
@@ -265,6 +375,9 @@ class GameWorld {
     if (dead || dying > 0) return;
     if (onGround) {
       _doJump();
+    } else if (ability.doubleJump && !_usedDouble) {
+      _usedDouble = true;
+      _doJump(air: true);
     } else {
       _buffer = bufferTime; // jump as soon as we land
     }
@@ -274,15 +387,20 @@ class GameWorld {
     holding = false;
   }
 
-  void _doJump() {
-    kidVy = jumpSpeed;
-    kidY = 0.02;
-    _holdTime = 0;
+  void _doJump({bool air = false}) {
+    kidVy = air ? jumpSpeed * 0.9 : jumpSpeed;
+    kidY = max(kidY, 0.02);
+    _holdTime = air ? maxHold : 0;
     _buffer = 0;
     squashX = 0.78;
     squashY = 1.25;
     events.add(GameEvent.jump);
-    _dust(kidX, floorY, 6, -1);
+    if (air) {
+      flip = 1;
+      _burst(kidX, floorY - kidY - 20, 8, const Color(0xFFFF6FA8), 1);
+    } else {
+      _dust(kidX, floorY, 6, -1);
+    }
   }
 
   // ---------------- Power-ups ----------------
@@ -293,11 +411,12 @@ class GameWorld {
     }
     hazards.clear();
     windup = 0;
+    whipT = 0;
     calm = 2.6;
     _throwTimer = 3.2;
     _obstacleTimer = max(_obstacleTimer, 1.4);
     grandmaFlash = 1.0;
-    shout = 'باشه مادر جون...';
+    shout = chaser == Parent.mom ? 'باشه مادر جون...' : 'چشم مادر...';
     shoutTimer = 1.6;
     texts.add(FloatText('مادربزرگ نجاتت داد!', size.width / 2, floorY - 220,
         const Color(0xFF26C6BE), size: 24));
@@ -316,9 +435,11 @@ class GameWorld {
     usedContinue = true;
     hazards.clear();
     windup = 0;
+    whipT = 0;
     kidY = 0;
     kidVy = 0;
     tilt = 0;
+    flip = 0;
     invincible = 2.2;
     calm = 1.5;
     _obstacleTimer = 1.4;
@@ -336,6 +457,7 @@ class GameWorld {
     final dt = realDt * (dying > 0 ? 0.35 : (_slowmo > 0 ? 0.5 : 1.0));
     time += dt;
     if (shake > 0) shake = max(0, shake - realDt * 3);
+    twirl += dt * (windup > 0 ? 17 : 8);
 
     _updateParticles(dt);
 
@@ -345,6 +467,7 @@ class GameWorld {
       kidY = max(0, kidY + kidVy * dt);
       tilt -= dt * 9;
       dying -= realDt;
+      if (shoutTimer > 0) shoutTimer -= dt;
       if (dying <= 0) {
         dead = true;
         events.add(GameEvent.death);
@@ -353,12 +476,13 @@ class GameWorld {
     }
 
     anger = (0.15 + meters / 1400).clamp(0.0, 1.0);
-    speed = _lerp(270, 560, anger);
+    speed = _lerp(270, 560, anger) * ability.speedMul;
     traveled += speed * dt;
     runPhase += dt * speed / 19;
+    if (kickCd > 0) kickCd = max(0, kickCd - dt);
 
     _updateKid(dt);
-    _updateMom(dt);
+    _updateParents(dt);
     _spawn(dt);
     _move(dt);
     _collide();
@@ -368,11 +492,16 @@ class GameWorld {
     if (_buffer > 0) _buffer -= dt;
     final wasAir = !onGround;
 
+    gliding = false;
     if (kidVy > 0 && holding && _holdTime < maxHold) {
       _holdTime += dt;
       kidVy -= gravityHold * dt;
     } else if (kidVy > 0) {
       kidVy -= gravityUp * dt;
+    } else if (ability.glide && holding && kidY > 20) {
+      // hero: float down slowly with the cape
+      gliding = true;
+      kidVy = max(kidVy - 700 * dt, -170);
     } else {
       kidVy -= gravityDown * dt;
     }
@@ -381,6 +510,8 @@ class GameWorld {
       kidY = 0;
       if (wasAir) {
         kidVy = 0;
+        _usedDouble = false;
+        flip = 0;
         squashX = 1.28;
         squashY = 0.76;
         events.add(GameEvent.land);
@@ -389,11 +520,12 @@ class GameWorld {
       }
       kidVy = max(0, kidVy);
     }
+    if (flip > 0) flip = max(0, flip - dt * 2.6);
 
     // springy squash & stretch back to normal
     final k = min(1.0, dt * 14);
     double tx = 1, ty = 1;
-    if (!onGround) {
+    if (!onGround && !gliding) {
       final st = (kidVy.abs() / 2600).clamp(0.0, 0.18);
       tx = 1 - st;
       ty = 1 + st;
@@ -401,8 +533,9 @@ class GameWorld {
     squashX += (tx - squashX) * k;
     squashY += (ty - squashY) * k;
 
-    final targetTilt =
-        onGround ? 0.07 : (-kidVy / 5200).clamp(-0.2, 0.25) + 0.05;
+    final targetTilt = onGround
+        ? 0.07
+        : (gliding ? 0.25 : (-kidVy / 5200).clamp(-0.2, 0.25) + 0.05);
     tilt += (targetTilt - tilt) * min(1.0, dt * 12);
 
     blinkTimer -= dt;
@@ -414,9 +547,44 @@ class GameWorld {
 
   bool get blinking => blinkTimer < 0;
 
-  void _updateMom(double dt) {
+  void _updateParents(double dt) {
     if (shoutTimer > 0) shoutTimer -= dt;
     if (release > 0) release = max(0, release - dt * 4);
+
+    // Belt crack in progress
+    if (whipT > 0) {
+      whipT += dt / whipDur;
+      if (whipT >= 1) {
+        whipT = 0;
+        if (!_whipHit) _checkWhipNearMiss();
+      }
+    }
+
+    // Mom and Dad take turns chasing
+    if (swapTimer > 0) {
+      swapTimer -= dt;
+      if (swapTimer <= swapDur / 2 && swapTimer + dt > swapDur / 2) {
+        // the new parent starts walking in
+        final dad = chaser == Parent.dad;
+        texts.add(FloatText(dad ? 'بابا اومد!' : 'مامان برگشت!',
+            size.width / 2, floorY - 240, const Color(0xFFFF5A4E), size: 30));
+        shout = dad ? dadLines[rng.nextInt(dadLines.length)] : momLines[0];
+        shoutTimer = 1.6;
+        events.add(GameEvent.parentSwap);
+      }
+      return;
+    }
+    _nextSwap -= dt;
+    if (_nextSwap <= 0 && windup <= 0 && whipT <= 0) {
+      _outgoing = chaser;
+      chaser = chaser == Parent.mom ? Parent.dad : Parent.mom;
+      swapTimer = swapDur;
+      _secondThrow = 0;
+      _throwTimer = 1.4;
+      _nextSwap = 22 + rng.nextDouble() * 10;
+      return;
+    }
+
     if (calm > 0) {
       calm -= dt;
       return;
@@ -425,57 +593,71 @@ class GameWorld {
       windup += dt / _windupDur;
       if (windup >= 1) {
         windup = 0;
-        _throw(_nextThrow);
+        _attack(_nextThrow);
         if (_nextThrow == ThrowKind.twin) _secondThrow = 0.8;
       }
       return;
     }
     if (_secondThrow > 0) {
       _secondThrow -= dt;
-      if (_secondThrow <= 0) _throw(ThrowKind.low);
+      if (_secondThrow <= 0) _attack(ThrowKind.low);
     }
     _throwTimer -= dt;
     if (_throwTimer <= 0) _startWindup();
   }
 
   void _startWindup() {
-    // Which throw? Harder kinds unlock as Mom gets angrier.
-    final options = <ThrowKind>[ThrowKind.low, ThrowKind.low, ThrowKind.high];
-    if (anger > 0.3) options.add(ThrowKind.bounce);
-    if (anger > 0.5) options.add(ThrowKind.twin);
+    // Which attack? Harder kinds unlock as the parents get angrier.
+    final List<ThrowKind> options;
+    if (chaser == Parent.mom) {
+      options = [ThrowKind.low, ThrowKind.low, ThrowKind.high];
+      if (anger > 0.3) options.add(ThrowKind.bounce);
+      if (anger > 0.5) options.add(ThrowKind.twin);
+    } else {
+      options = [ThrowKind.whipLow, ThrowKind.whipLow, ThrowKind.whipHigh];
+      if (anger > 0.3) options.add(ThrowKind.remote);
+    }
     var kind = options[rng.nextInt(options.length)];
 
-    _windupDur = _lerp(0.85, 0.55, anger);
+    _windupDur = _lerp(0.85, 0.55, anger) * ability.warnBonus;
     final arrive = _windupDur + 0.4;
-    // A high slipper (stay down) must not meet an obstacle that needs a jump.
+    // A high attack (stay down) must not meet an obstacle that needs a jump.
     final conflict = hazards.any((h) =>
         !h.isSlipper && ((h.x - kidX) / speed - arrive).abs() < 0.9);
-    if (kind == ThrowKind.high && conflict) kind = ThrowKind.low;
-    if (kind == ThrowKind.high || kind == ThrowKind.twin) {
+    if (conflict) {
+      if (kind == ThrowKind.high) kind = ThrowKind.low;
+      if (kind == ThrowKind.whipHigh) kind = ThrowKind.whipLow;
+    }
+    if (kind == ThrowKind.high ||
+        kind == ThrowKind.twin ||
+        kind == ThrowKind.whipHigh) {
       _obstacleTimer = max(_obstacleTimer, arrive + 0.6);
     }
     _nextThrow = kind;
     windup = 0.001;
-    shout = momLines[rng.nextInt(momLines.length)];
+    final lines = chaser == Parent.mom ? momLines : dadLines;
+    shout = lines[rng.nextInt(lines.length)];
     shoutTimer = _windupDur + 0.6;
     events.add(GameEvent.windup);
     _throwTimer = _lerp(4.2, 1.9, anger) + rng.nextDouble() * 1.4;
   }
 
-  void _throw(ThrowKind kind) {
+  void _attack(ThrowKind kind) {
     release = 1;
-    events.add(GameEvent.whoosh);
-    final x0 = momX + 50;
+    final x0 = parentX + 50;
     final v = _lerp(400, 540, anger);
     switch (kind) {
       case ThrowKind.low:
       case ThrowKind.twin:
+        events.add(GameEvent.whoosh);
         hazards.add(Hazard.slipper(ThrowKind.low, x0, floorY - 42, v, 0));
         break;
       case ThrowKind.high:
+        events.add(GameEvent.whoosh);
         hazards.add(Hazard.slipper(ThrowKind.high, x0, floorY - 116, v, 0));
         break;
       case ThrowKind.bounce:
+        events.add(GameEvent.whoosh);
         // lob that lands before the kid and bounces into him
         final y0 = floorY - 150;
         final landX = kidX - 70;
@@ -484,7 +666,27 @@ class GameWorld {
         final vy = (floorY - 12 - y0 - 0.5 * 1500 * t * t) / t;
         hazards.add(Hazard.slipper(ThrowKind.bounce, x0, y0, vx, vy));
         break;
+      case ThrowKind.remote:
+        events.add(GameEvent.whoosh);
+        hazards.add(Hazard.slipper(ThrowKind.remote, x0, floorY - 40, v * 1.1, 0));
+        break;
+      case ThrowKind.whipLow:
+      case ThrowKind.whipHigh:
+        events.add(GameEvent.crack);
+        whipHigh = kind == ThrowKind.whipHigh;
+        whipT = 0.001;
+        _whipHit = false;
+        break;
     }
+  }
+
+  void _checkWhipNearMiss() {
+    final kid = kidHitbox;
+    final box = Rect.fromLTRB(whipStartX, whipY - 9, kidX + 80, whipY + 9);
+    final gap = box.top > kid.bottom
+        ? box.top - kid.bottom
+        : (kid.top > box.bottom ? kid.top - box.bottom : 99.0);
+    if (gap < 30) _nearMiss(kidX, whipY);
   }
 
   void _spawn(double dt) {
@@ -502,8 +704,7 @@ class GameWorld {
       if (coins.length < before || rng.nextDouble() < 0.45) {
         for (int i = 0; i < 5; i++) {
           final f = i / 4;
-          coins.add(CoinItem(
-              x - 80 + f * 160, floorY - 95 - sin(f * pi) * 80));
+          coins.add(CoinItem(x - 80 + f * 160, floorY - 95 - sin(f * pi) * 80));
         }
         _coinTimer = max(_coinTimer, 1.0);
       }
@@ -516,8 +717,8 @@ class GameWorld {
       final n = 3 + rng.nextInt(4);
       final x0 = size.width + 30, x1 = x0 + (n - 1) * 36;
       // A ground row must not overlap an obstacle: use an air row instead.
-      final blocked = hazards.any(
-          (h) => !h.isSlipper && h.x > x0 - 90 && h.x < x1 + 90);
+      final blocked =
+          hazards.any((h) => !h.isSlipper && h.x > x0 - 90 && h.x < x1 + 90);
       final air = blocked || rng.nextDouble() < 0.35;
       final y = air ? floorY - 150 : floorY - 38;
       for (int i = 0; i < n; i++) {
@@ -536,7 +737,7 @@ class GameWorld {
       h.age += dt;
       if (h.isSlipper) {
         h.x += h.vx * dt;
-        h.rot += dt * 16;
+        h.rot += dt * (h.isRemote ? 22 : 16);
         if (h.throwKind == ThrowKind.bounce) {
           h.vy += 1500 * dt;
           h.y += h.vy * dt;
@@ -553,8 +754,14 @@ class GameWorld {
         }
         if (addTrail) {
           particles.add(Particle(3, h.x - 14, h.y, -40, 0, 0.22, 12,
-              const Color(0xFF8FB8FF)));
+              h.isRemote ? const Color(0xFFB0B0C0) : const Color(0xFF8FB8FF)));
         }
+      } else if (h.kicked) {
+        // flying away after a kick
+        h.x += 520 * dt;
+        h.vy += 1500 * dt;
+        h.y += h.vy * dt;
+        h.rot += dt * 12;
       } else {
         h.x -= speed * dt;
         h.rot -= dt * speed / 18;
@@ -581,11 +788,23 @@ class GameWorld {
     texts.removeWhere((t) => t.life <= 0);
   }
 
+  bool _useShield() {
+    if (!shield) return false;
+    shield = false;
+    invincible = 1.0;
+    shake = 0.5;
+    events.add(GameEvent.shieldBreak);
+    _burst(kidX, floorY - kidY - 50, 14, const Color(0xFF26C6BE), 4);
+    texts.add(FloatText('بالش نجاتت داد!', kidX, floorY - kidY - 130,
+        const Color(0xFF26C6BE)));
+    return true;
+  }
+
   void _collide() {
     final kid = kidHitbox;
     coins.removeWhere((c) {
       if (kid.inflate(10).contains(Offset(c.x, c.y))) {
-        coinsThisRun++;
+        coinsThisRun += ability.coinMul;
         events.add(GameEvent.coin);
         _burst(c.x, c.y, 5, const Color(0xFFFFD34D), 1);
         return true;
@@ -593,54 +812,75 @@ class GameWorld {
       return false;
     });
 
+    // Dad's belt
+    if (whipT > 0 && whipT < 0.6 && !_whipHit && invincible <= 0) {
+      if (whipBox.overlaps(kid)) {
+        _whipHit = true;
+        if (!_useShield()) {
+          _die(null);
+          return;
+        }
+      }
+    }
+
     for (final h in List<Hazard>.from(hazards)) {
+      if (h.kicked) continue;
       final box = h.hitbox;
       if (invincible <= 0 && box.overlaps(kid)) {
-        if (shield) {
-          shield = false;
-          invincible = 1.0;
+        // football kid kicks obstacles away
+        if (!h.isSlipper && ability.kickCooldown > 0 && kickCd <= 0) {
+          h.kicked = true;
+          h.vy = -620;
+          kickCd = ability.kickCooldown;
+          events.add(GameEvent.kick);
+          shake = 0.3;
+          _burst(h.x, h.y - 30, 10, const Color(0xFFFFFFFF), 1);
+          texts.add(FloatText('شوت!', kidX + 40, floorY - kidY - 120,
+              const Color(0xFF26C6BE), size: 26));
+          continue;
+        }
+        if (_useShield()) {
           hazards.remove(h);
-          shake = 0.5;
-          events.add(GameEvent.shieldBreak);
-          _burst(kidX, floorY - kidY - 50, 14, const Color(0xFF26C6BE), 4);
-          texts.add(FloatText('بالش نجاتت داد!', kidX, floorY - kidY - 130,
-              const Color(0xFF26C6BE)));
           continue;
         }
         _die(h);
         return;
       }
-      // near miss: a slipper just flew past very close
+      // near miss: something flew past very close
       if (h.isSlipper && !h.passed && h.x > kidX + 24) {
         h.passed = true;
         final gap = box.top > kid.bottom
             ? box.top - kid.bottom
             : (kid.top > box.bottom ? kid.top - box.bottom : 0.0);
-        if (gap < 30) {
-          nearMisses++;
-          coinsThisRun += 3;
-          _slowmo = 0.22;
-          events.add(GameEvent.nearMiss);
-          texts.add(FloatText('جاخالی! +۳', kidX + 30, floorY - kidY - 120,
-              const Color(0xFFFF5A4E)));
-          _burst(h.x, h.y, 8, const Color(0xFFFFFFFF), 1);
-        }
+        if (gap < 30) _nearMiss(h.x, h.y);
       }
     }
   }
 
-  void _die(Hazard h) {
+  void _nearMiss(double x, double y) {
+    nearMisses++;
+    final bonus = 3 * ability.coinMul;
+    coinsThisRun += bonus;
+    _slowmo = 0.22;
+    events.add(GameEvent.nearMiss);
+    texts.add(FloatText(bonus == 3 ? 'جاخالی! +۳' : 'جاخالی! +۶', kidX + 30,
+        floorY - kidY - 120, const Color(0xFFFF5A4E)));
+    _burst(x, y, 8, const Color(0xFFFFFFFF), 1);
+  }
+
+  void _die(Hazard? h) {
     dying = 0.9;
     shake = 1;
     kidVy = 520;
     kidY = max(kidY, 1);
+    flip = 0;
     events.add(GameEvent.hit);
     _burst(kidX, floorY - kidY - 70, 12, const Color(0xFFFFD34D), 2);
-    if (h.isSlipper) {
+    if (h != null && h.isSlipper) {
       h.vx = -180;
       h.vy = -300;
     }
-    shout = 'گرفتمت!';
+    shout = chaser == Parent.mom ? 'گرفتمت!' : 'حالا شد!';
     shoutTimer = 2;
   }
 
@@ -680,4 +920,9 @@ class GameWorld {
     }
     particles.removeWhere((p) => p.life <= 0);
   }
+}
+
+/// Tiny easing helpers (no Flutter dependency in the game rules).
+class Curves2 {
+  static double easeOut(double t) => 1 - pow(1 - t, 3).toDouble();
 }

@@ -52,6 +52,7 @@ class _GameScreenState extends State<GameScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+    _w.ability = s.character.ability;
     _w.reset();
     _ticker = createTicker(_tick)..start();
     Audio.i.setMusicVolume(0.45);
@@ -113,6 +114,16 @@ class _GameScreenState extends State<GameScreen>
           Audio.i.play(Sfx.shield);
           HapticFeedback.mediumImpact();
           break;
+        case GameEvent.kick:
+          Audio.i.play(Sfx.kick);
+          HapticFeedback.mediumImpact();
+          break;
+        case GameEvent.crack:
+          Audio.i.play(Sfx.crack, volume: 0.9);
+          break;
+        case GameEvent.parentSwap:
+          Audio.i.play(Sfx.dad, volume: 0.8);
+          break;
         case GameEvent.death:
           _onDeath();
           break;
@@ -162,6 +173,7 @@ class _GameScreenState extends State<GameScreen>
     if (!mounted) return;
     Audio.i.setMusicVolume(0.45);
     setState(() {
+      _w.ability = s.character.ability;
       _w.reset();
       _doubled = false;
       _record = false;
@@ -218,7 +230,14 @@ class _GameScreenState extends State<GameScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CoinPill(amount: _w.coinsThisRun),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CoinPill(amount: _w.coinsThisRun),
+                  const SizedBox(height: 8),
+                  _abilityBadge(),
+                ],
+              ),
               const Spacer(),
               Column(children: [
                 OutlinedTitle(fa(_w.meters), size: 38),
@@ -251,6 +270,43 @@ class _GameScreenState extends State<GameScreen>
           ),
         ],
       ),
+    );
+  }
+
+  /// Small pill showing the character's power (and the kick charge).
+  Widget _abilityBadge() {
+    final ch = s.character;
+    if (ch.ability == const Ability()) return const SizedBox.shrink();
+    final kick = ch.ability.kickCooldown > 0;
+    final ready = _w.kickReady;
+    return Container(
+      height: 30,
+      padding: const EdgeInsetsDirectional.fromSTEB(6, 0, 10, 0),
+      decoration: BoxDecoration(
+        color: const Color(0xE6FFFFFF),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: kSoftShadow,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(
+          width: 22,
+          height: 22,
+          child: Stack(alignment: Alignment.center, children: [
+            if (kick)
+              CircularProgressIndicator(
+                value: ready,
+                strokeWidth: 3,
+                color: ready >= 1 ? C.green : C.goldDark,
+                backgroundColor: const Color(0xFFF1E4F5),
+              ),
+            Icon(ch.abilityIcon, size: 15, color: ch.rarity.color),
+          ]),
+        ),
+        const SizedBox(width: 6),
+        Text(kick && ready < 1 ? '${ch.abilityName}...' : ch.abilityName,
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w900, color: C.ink)),
+      ]),
     );
   }
 

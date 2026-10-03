@@ -148,6 +148,24 @@ def sfx():
     last = wah(277, 1.1) * (1 + 0.04 * np.sin(2 * np.pi * 6 * t(1.1)))
     save("gameover", cat(wah(349, 0.32), wah(330, 0.32), wah(311, 0.32), last), gain=0.55)
 
+    # Belt crack: a very sharp snap with a whistle before it
+    whistle = sweep(900, 2400, 0.12, "sine") * np.linspace(0, 0.4, int(SR * 0.12))
+    snap = bandpass(noise(0.06), 2000, 9000) * env(int(SR * 0.06), 0.0003, curve=14)
+    save("crack", cat(whistle, snap * 2.2), gain=0.75)
+
+    # Kick: a punchy thump + a little "boing" as the obstacle flies away
+    kick_th = sweep(180, 50, 0.12) * env(int(SR * 0.12), 0.001, curve=6)
+    save("kick", mix(kick_th * 1.4, np.zeros(2000), sweep(300, 900, 0.25, "tri")
+                     * env(int(SR * 0.25), 0.01, curve=3) * 0.5), gain=0.7)
+
+    # Dad arrives: dramatic "dun dun DUNNN"
+    def brass(f, d):
+        tt = t(d)
+        saw = 2 * ((f * tt) % 1) - 1 + 0.6 * (2 * ((f * 1.005 * tt) % 1) - 1)
+        e = np.minimum(1, tt * 30) * np.exp(-tt * (1.5 if d > 0.5 else 5))
+        return lowpass(saw, 1600) * e
+    save("dad", cat(brass(147, 0.22), brass(139, 0.22), brass(117, 1.0)), gain=0.6)
+
     # UI click
     save("click", tone(1200, 0.035, (1,), 9) + tone(600, 0.035, (1,), 9), gain=0.35)
 

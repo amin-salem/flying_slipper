@@ -470,7 +470,7 @@ class _CharactersTab extends StatelessWidget {
       crossAxisCount: 2,
       mainAxisSpacing: 14,
       crossAxisSpacing: 12,
-      childAspectRatio: 0.66,
+      childAspectRatio: 0.56,
       children: [
         for (final ch in kCharacters)
           _CharacterCard(
@@ -585,10 +585,36 @@ class _CharacterCardState extends State<_CharacterCard>
         Text(ch.name,
             style: const TextStyle(
                 fontWeight: FontWeight.w900, fontSize: 15, color: C.ink)),
-        Text(ch.desc,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: kSmall.copyWith(fontSize: 11)),
+        const SizedBox(height: 4),
+        // the character's special power: the reason to buy them
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+          decoration: BoxDecoration(
+            color: ch.rarity.bg.last.withAlpha(150),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(ch.abilityIcon, size: 16, color: ch.rarity.color),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(ch.abilityName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: ch.rarity.color)),
+              ),
+            ]),
+            Text(ch.abilityDesc,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: kSmall.copyWith(fontSize: 11, height: 1.25)),
+          ]),
+        ),
         const SizedBox(height: 6),
         GameButton(
           tone: tone,

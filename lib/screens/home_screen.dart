@@ -270,6 +270,14 @@ class _HeroCard extends StatelessWidget {
               Text(ch.name,
                   style: const TextStyle(
                       fontWeight: FontWeight.w900, fontSize: 13, color: C.ink)),
+              if (ch.abilityName != 'بدون قدرت ویژه') ...[
+                const SizedBox(width: 6),
+                Icon(ch.abilityIcon, size: 14, color: ch.rarity.color),
+                const SizedBox(width: 2),
+                Text(ch.abilityName,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 12, color: ch.rarity.color)),
+              ],
             ]),
           ),
         ),
@@ -338,7 +346,7 @@ class _HeroPainter extends CustomPainter {
     // Mom chasing
     final windup = hopT < 0.15 ? hopT / 0.15 : 0.0;
     drawMom(canvas, Offset(size.width * 0.15, floorY + 4), scale * 0.85,
-        time: time, windup: windup, anger: 0.8, shouting: true);
+        time: time, windup: windup, anger: 0.8, shouting: true, twirl: time * 9);
 
     // slipper flying across under the hop
     final st = ((time % 1.5) / 1.5 - 0.15) / 0.5;

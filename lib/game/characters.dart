@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'world.dart' show Ability;
 
 enum Rarity { common, rare, epic, legendary }
 
@@ -41,6 +42,10 @@ class Character {
     this.stripes,
     this.number,
     this.runMood = Mood.scared,
+    this.ability = const Ability(),
+    this.abilityName = 'بدون قدرت ویژه',
+    this.abilityDesc = 'شیطون، ولی معمولی!',
+    this.abilityIcon = Icons.sentiment_satisfied_alt_rounded,
   });
 
   final String id;
@@ -58,6 +63,12 @@ class Character {
   final Color? stripes;
   final String? number;
   final Mood runMood;
+
+  /// What makes this kid special in the game (shown in the shop).
+  final Ability ability;
+  final String abilityName;
+  final String abilityDesc;
+  final IconData abilityIcon;
 }
 
 const List<Character> kCharacters = [
@@ -78,12 +89,16 @@ const List<Character> kCharacters = [
     name: 'سارا',
     desc: 'سریع‌ترین دختر کوچه',
     rarity: Rarity.common,
-    price: 800,
+    price: 1200,
     shirt: Color(0xFFFF6FA8),
     pants: Color(0xFF6C3FB5),
     shoes: Color(0xFFFFFFFF),
     hair: Hair.pigtails,
     hairColor: Color(0xFF2A1A12),
+    ability: Ability(doubleJump: true),
+    abilityName: 'پرش دوبل',
+    abilityDesc: 'وسط هوا یه بار دیگه بپر!',
+    abilityIcon: Icons.keyboard_double_arrow_up_rounded,
   ),
   Character(
     id: 'omid',
@@ -97,6 +112,28 @@ const List<Character> kCharacters = [
     hair: Hair.neat,
     hairColor: Color(0xFF241812),
     extras: [Extra.glasses, Extra.backpack],
+    ability: Ability(warnBonus: 1.45),
+    abilityName: 'آینده‌نگر',
+    abilityDesc: 'حمله‌ها رو خیلی زودتر می‌بینه',
+    abilityIcon: Icons.visibility_rounded,
+  ),
+  Character(
+    id: 'pajama',
+    name: 'خواب‌آلو',
+    desc: 'هنوز از خواب بیدار نشده',
+    rarity: Rarity.rare,
+    price: 2500,
+    shirt: Color(0xFF8EC5FF),
+    pants: Color(0xFF8EC5FF),
+    shoes: Color(0xFF9B6B4A),
+    hair: Hair.nightcap,
+    hairColor: Color(0xFF5A3A22),
+    stripes: Color(0xFF3F7FD6),
+    runMood: Mood.sleepy,
+    ability: Ability(speedMul: 0.85),
+    abilityName: 'دنیای آهسته',
+    abilityDesc: 'همه چی ۱۵٪ آروم‌تره',
+    abilityIcon: Icons.bedtime_rounded,
   ),
   Character(
     id: 'football',
@@ -111,20 +148,10 @@ const List<Character> kCharacters = [
     hairColor: Color(0xFF3A2416),
     number: '۱۰',
     runMood: Mood.happy,
-  ),
-  Character(
-    id: 'pajama',
-    name: 'خواب‌آلو',
-    desc: 'هنوز از خواب بیدار نشده',
-    rarity: Rarity.rare,
-    price: 4000,
-    shirt: Color(0xFF8EC5FF),
-    pants: Color(0xFF8EC5FF),
-    shoes: Color(0xFF9B6B4A),
-    hair: Hair.nightcap,
-    hairColor: Color(0xFF5A3A22),
-    stripes: Color(0xFF3F7FD6),
-    runMood: Mood.sleepy,
+    ability: Ability(kickCooldown: 10),
+    abilityName: 'شوت',
+    abilityDesc: 'هر ۱۰ ثانیه یه مانع رو شوت می‌کنه',
+    abilityIcon: Icons.sports_soccer_rounded,
   ),
   Character(
     id: 'nowruz',
@@ -140,6 +167,10 @@ const List<Character> kCharacters = [
     vest: Color(0xFF1FA463),
     extras: [Extra.goldfish],
     runMood: Mood.happy,
+    ability: Ability(coinMul: 2),
+    abilityName: 'عیدی',
+    abilityDesc: 'هر سکه دوتا حساب میشه!',
+    abilityIcon: Icons.redeem_rounded,
   ),
   Character(
     id: 'hero',
@@ -154,6 +185,10 @@ const List<Character> kCharacters = [
     hairColor: Color(0xFF1C1410),
     extras: [Extra.cape],
     runMood: Mood.cool,
+    ability: Ability(glide: true, startShield: true),
+    abilityName: 'پرواز',
+    abilityDesc: 'نگه دار تا پرواز کنی + سپر اول هر بازی',
+    abilityIcon: Icons.flight_rounded,
   ),
 ];
 
@@ -212,16 +247,31 @@ void drawCharacter(
   Mood? mood,
   double time = 0,
   bool blink = false,
+  bool gliding = false,
+  double spin = 0,
 }) {
   final m = mood ?? ch.runMood;
   canvas.save();
   canvas.translate(feet.dx, feet.dy);
   canvas.scale(scale * squashX, scale * squashY);
   canvas.rotate(tilt);
+  if (spin != 0) {
+    // somersault around the middle of the body
+    canvas.translate(0, -50);
+    canvas.rotate(spin);
+    canvas.translate(0, 50);
+  }
 
   // ---- Running cycle ----
   double legA, legB, kneeA, kneeB, armA, armB;
-  if (airborne) {
+  if (gliding) {
+    legA = -0.5; // legs trail behind like a flying hero
+    kneeA = -0.2;
+    legB = -0.8;
+    kneeB = -0.2;
+    armA = 1.9; // fist forward
+    armB = -1.4;
+  } else if (airborne) {
     legA = 0.9; // front leg tucked
     kneeA = -1.4;
     legB = -0.6; // back leg stretched
@@ -271,7 +321,16 @@ void drawCharacter(
   }
 
   // ---- Cape (behind everything) ----
-  if (ch.extras.contains(Extra.cape)) {
+  if (ch.extras.contains(Extra.cape) && gliding) {
+    final wave = sin(time * 14) * 5;
+    final cape = Path()
+      ..moveTo(-8, -54)
+      ..quadraticBezierTo(-40, -70 + wave, -76, -52 - wave)
+      ..quadraticBezierTo(-56, -36 + wave, -64, -20)
+      ..quadraticBezierTo(-30, -30, 6, -50)
+      ..close();
+    _fillOutline(canvas, cape, const Color(0xFFE53935));
+  } else if (ch.extras.contains(Extra.cape)) {
     final wave = sin(time * 9) * 4;
     final cape = Path()
       ..moveTo(-8, -54)
@@ -659,6 +718,7 @@ void drawMom(
   double anger = 0.3,
   bool shouting = false,
   bool calm = false,
+  double twirl = 0,
 }) {
   c.save();
   final bob = -(sin(time * 11).abs()) * 4;
@@ -775,25 +835,251 @@ void drawMom(
     }
   }
 
-  // throwing arm
+  // throwing arm: twirls a slipper above her head, swings forward to throw
   const shoulder = Offset(14, -94);
-  double a = 0.5; // down-forward
-  if (windup > 0) a = 0.5 + windup * 2.4; // goes up & back
-  if (release > 0) a = 0.5 + release * 2.4 - (1 - release) * 0.6;
-  final elbow = shoulder + Offset(sin(a) * 18, cos(a) * 18);
-  final hand = elbow + Offset(sin(a + 0.3) * 16, cos(a + 0.3) * 16);
+  final throwing = release > 0.15;
+  Offset elbow, hand;
+  if (calm) {
+    elbow = shoulder + const Offset(6, 18);
+    hand = elbow + const Offset(10, 12);
+  } else if (throwing) {
+    final a = 0.5 + release * 2.4 - (1 - release) * 0.6;
+    elbow = shoulder + Offset(sin(a) * 18, cos(a) * 18);
+    hand = elbow + Offset(sin(a + 0.3) * 16, cos(a + 0.3) * 16);
+  } else {
+    final r = 6 + windup * 6;
+    elbow = shoulder + const Offset(22, -34);
+    hand = shoulder + Offset(8 + cos(twirl) * r, -76 + sin(twirl) * r * 0.5);
+  }
   _limb(c, [shoulder, elbow, hand], const Color(0xFF8E5BD6), 9);
   c.drawCircle(hand, 5.5, _f(const Color(0xFFF2C29A)));
   c.drawCircle(hand, 5.5, _outline);
   c.restore();
 
-  if (windup > 0) {
-    // slipper in her hand (drawn in world space so size matches thrown ones)
-    final handWorld = feet +
-        Offset(hand.dx * scale, (hand.dy + bob) * scale) +
-        const Offset(0, -6);
-    drawSlipper(c, handWorld, 54 * scale, -a + pi / 2);
+  if (!calm && !throwing) {
+    // the slipper spins around her hand (world space, same size as thrown ones)
+    final orbit = Offset(cos(twirl) * 14, sin(twirl) * 7);
+    final handWorld = feet + Offset(hand.dx * scale, (hand.dy + bob) * scale);
+    drawSlipper(c, handWorld + orbit * scale + Offset(0, -10 * scale),
+        52 * scale, twirl * 1.0);
   }
+}
+
+/// Dad: white tank top, striped pajama pants, big mustache, bald head,
+/// twirling his belt like a lasso. ~175 units tall, faces right.
+/// [reach] (local units) is where his hand goes while cracking the belt.
+void drawDad(
+  Canvas c,
+  Offset feet,
+  double scale, {
+  double time = 0,
+  double windup = 0,
+  double twirl = 0,
+  double anger = 0.3,
+  bool shouting = false,
+  bool calm = false,
+  Offset? reach,
+}) {
+  c.save();
+  final bob = -(sin(time * 10).abs()) * 5;
+  c.translate(feet.dx, feet.dy + bob * scale);
+  c.scale(scale);
+  const skin = Color(0xFFE9B58C);
+  const pants = Color(0xFF7D8AA6);
+
+  // legs in striped pajama pants
+  final step = sin(time * 10) * 7;
+  for (final dx in [-12.0 + step, 10.0 - step]) {
+    final leg = RRect.fromRectAndRadius(
+        Rect.fromLTWH(dx - 8, -64, 17, 58), const Radius.circular(7));
+    c.drawRRect(leg, _f(pants));
+    c.save();
+    c.clipRRect(leg);
+    for (double y = -62; y < -6; y += 8) {
+      c.drawLine(Offset(dx - 9, y), Offset(dx + 10, y), _s(const Color(0xFF5A6788), 2));
+    }
+    c.restore();
+    c.drawRRect(leg, _outline);
+    final shoe = RRect.fromRectAndRadius(
+        Rect.fromLTWH(dx - 8, -8, 22, 8), const Radius.circular(4));
+    c.drawRRect(shoe, _f(const Color(0xFF3F70C8)));
+    c.drawRRect(shoe, _outline);
+  }
+
+  // back arm on hip
+  _limb(c, const [Offset(-20, -112), Offset(-36, -88), Offset(-22, -74)], skin, 10);
+
+  // big belly in a white tank top (rekabi)
+  final belly = Path()
+    ..moveTo(-22, -124)
+    ..quadraticBezierTo(0, -130, 22, -124)
+    ..quadraticBezierTo(40, -96, 30, -64)
+    ..quadraticBezierTo(0, -54, -28, -64)
+    ..quadraticBezierTo(-34, -96, -22, -124)
+    ..close();
+  _fillOutline(c, belly, const Color(0xFFF7F5F0));
+  // arm holes & a little chest hair
+  c.drawArc(Rect.fromCenter(center: const Offset(-18, -116), width: 14, height: 18),
+      -pi / 2, pi, false, _s(C.ink, 2));
+  for (int i = 0; i < 5; i++) {
+    c.drawLine(Offset(-6.0 + i * 3, -124), Offset(-7.0 + i * 3, -119), _s(C.ink, 1.6));
+  }
+  // belt loops (no belt: it's in his hand!)
+  c.drawLine(const Offset(-26, -66), const Offset(30, -66), _s(const Color(0xFF5A6788), 3));
+
+  // head
+  const hc = Offset(6, -148);
+  final head = Path()..addOval(Rect.fromCircle(center: hc, radius: 26));
+  _fillOutline(c, head, skin);
+  // side hair (bald on top)
+  for (final side in [-1.0, 1.0]) {
+    final hair = Path()
+      ..addOval(Rect.fromCenter(
+          center: hc + Offset(side * 22, 2), width: 12, height: 22));
+    c.drawPath(hair, _f(const Color(0xFF3B3B3B)));
+  }
+  // shiny bald spot
+  c.drawOval(Rect.fromCenter(center: hc + const Offset(-6, -16), width: 14, height: 7),
+      _f(const Color(0x88FFFFFF)));
+  // red angry face
+  c.drawOval(Rect.fromCircle(center: hc, radius: 24),
+      _f(Color.fromARGB((anger * 70).round(), 255, 60, 60)));
+
+  final e1 = hc + const Offset(2, -2);
+  final e2 = hc + const Offset(17, -2);
+  if (calm) {
+    c.drawArc(Rect.fromCenter(center: e1, width: 8, height: 6), pi, pi, false, _s(C.ink, 2.6));
+    c.drawArc(Rect.fromCenter(center: e2, width: 8, height: 6), pi, pi, false, _s(C.ink, 2.6));
+  } else {
+    for (final e in [e1, e2]) {
+      c.drawOval(Rect.fromCenter(center: e, width: 8, height: 8), _f(C.white));
+      c.drawOval(Rect.fromCenter(center: e, width: 8, height: 8), _s(C.ink, 1.8));
+      c.drawCircle(e + const Offset(1.4, 0.6), 2.4, _f(C.ink));
+    }
+    // one thick angry unibrow
+    final brow = Path()
+      ..moveTo(e1.dx - 7, e1.dy - 10)
+      ..lineTo(e1.dx + 6, e1.dy - 5)
+      ..lineTo(e2.dx - 6, e2.dy - 5)
+      ..lineTo(e2.dx + 7, e2.dy - 10);
+    c.drawPath(brow, _s(C.ink, 4.2));
+  }
+  // nose
+  c.drawOval(Rect.fromCenter(center: hc + const Offset(12, 6), width: 12, height: 10),
+      _f(const Color(0xFFDDA27A)));
+  // mouth (under the mustache)
+  if (shouting && !calm) {
+    final mouth = Rect.fromCenter(center: hc + const Offset(11, 19), width: 14, height: 10);
+    c.drawOval(mouth, _f(const Color(0xFF7A1F1F)));
+    c.drawOval(mouth, _s(C.ink, 2));
+  }
+  // the famous Iranian dad mustache
+  final stache = Path()
+    ..moveTo(hc.dx - 6, hc.dy + 14)
+    ..quadraticBezierTo(hc.dx + 2, hc.dy + 6, hc.dx + 11, hc.dy + 11)
+    ..quadraticBezierTo(hc.dx + 20, hc.dy + 6, hc.dx + 28, hc.dy + 14)
+    ..quadraticBezierTo(hc.dx + 20, hc.dy + 18, hc.dx + 11, hc.dy + 14)
+    ..quadraticBezierTo(hc.dx + 2, hc.dy + 18, hc.dx - 6, hc.dy + 14)
+    ..close();
+  c.drawPath(stache, _f(const Color(0xFF1E1A18)));
+  // ear
+  final ear = Path()..addOval(Rect.fromCircle(center: hc + const Offset(-14, 2), radius: 6));
+  _fillOutline(c, ear, skin);
+
+  // steam when very angry
+  if (anger > 0.55 && !calm) {
+    for (int k = 0; k < 3; k++) {
+      final tt = (time * 1.4 + k / 3) % 1.0;
+      final side = k.isEven ? -1 : 1;
+      final p = hc + Offset(side * (18 + tt * 10), -32 - tt * 26);
+      c.drawCircle(p, 4 + tt * 7,
+          _f(Color.fromARGB((200 * (1 - tt)).round(), 255, 255, 255)));
+    }
+  }
+
+  // belt arm
+  const shoulder = Offset(18, -116);
+  final belt = _s(const Color(0xFF6B3E1E), 7);
+  final beltEdge = _s(C.ink, 7 + _ow * 2);
+  if (reach != null) {
+    // cracking the belt: arm stretched towards the kid (belt drawn by painter)
+    final elbow = Offset.lerp(shoulder, reach, 0.5)! + const Offset(0, -6);
+    _limb(c, [shoulder, elbow, reach], skin, 10);
+    c.drawCircle(reach, 6, _f(skin));
+    c.drawCircle(reach, 6, _outline);
+  } else if (calm) {
+    _limb(c, const [Offset(18, -116), Offset(26, -94), Offset(34, -82)], skin, 10);
+    // belt hanging down
+    c.drawPath(Path()..moveTo(34, -82)..quadraticBezierTo(40, -60, 36, -40), beltEdge);
+    c.drawPath(Path()..moveTo(34, -82)..quadraticBezierTo(40, -60, 36, -40), belt);
+  } else {
+    // twirling the belt above his head like a lasso
+    final r = 7 + windup * 5;
+    final hand = shoulder + Offset(10 + cos(twirl) * r, -72 + sin(twirl) * r * 0.5);
+    _limb(c, [shoulder, shoulder + const Offset(26, -34), hand], skin, 10);
+    final loop = Rect.fromCenter(center: hand + const Offset(0, -12), width: 78, height: 30);
+    c.drawArc(loop, twirl, 4.6, false, beltEdge);
+    c.drawArc(loop, twirl, 4.6, false, belt);
+    // buckle at the end of the belt
+    final end = twirl + 4.6;
+    final bp = loop.center + Offset(cos(end) * loop.width / 2, sin(end) * loop.height / 2);
+    final buckle = Rect.fromCenter(center: bp, width: 12, height: 10);
+    c.drawRect(buckle, _f(C.gold));
+    c.drawRect(buckle, _s(C.ink, 2));
+    c.drawCircle(hand, 6, _f(skin));
+    c.drawCircle(hand, 6, _outline);
+    // motion lines
+    for (int k = 0; k < 2; k++) {
+      final aa = twirl - 0.6 - k * 0.5;
+      final p1 = loop.center + Offset(cos(aa) * 46, sin(aa) * 20);
+      final p2 = loop.center + Offset(cos(aa - 0.4) * 46, sin(aa - 0.4) * 20);
+      c.drawLine(p1, p2, _s(const Color(0x882B1B3A), 2.5));
+    }
+  }
+  c.restore();
+}
+
+/// Dad's belt stretched out while cracking, in world space.
+void drawBeltWhip(Canvas c, Offset from, Offset tip, double time) {
+  final len = (tip - from).distance;
+  if (len < 4) return;
+  final path = Path()..moveTo(from.dx, from.dy);
+  const n = 10;
+  for (int i = 1; i <= n; i++) {
+    final t = i / n;
+    final wave = sin(t * pi * 3 - time * 40) * 6 * (1 - t) * min(1.0, len / 120);
+    path.lineTo(from.dx + (tip.dx - from.dx) * t, from.dy + (tip.dy - from.dy) * t + wave);
+  }
+  c.drawPath(path, _s(C.ink, 7 + _ow * 2));
+  c.drawPath(path, _s(const Color(0xFF6B3E1E), 7));
+  final buckle = Rect.fromCenter(center: tip, width: 14, height: 12);
+  c.drawRect(buckle, _f(C.gold));
+  c.drawRect(buckle, _s(C.ink, 2));
+  // crack sparks at the tip
+  for (int k = 0; k < 4; k++) {
+    final a = k * pi / 2 + time * 8;
+    c.drawLine(tip + Offset(cos(a) * 10, sin(a) * 10), tip + Offset(cos(a) * 18, sin(a) * 18),
+        _s(C.ink, 2.4));
+  }
+}
+
+/// TV remote control (Dad throws it), drawn top-down.
+void drawRemote(Canvas c, Offset center, double width, double rotation) {
+  c.save();
+  c.translate(center.dx, center.dy);
+  c.rotate(rotation);
+  c.scale(width / 50);
+  final body = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(-25, -9, 50, 18), const Radius.circular(6));
+  c.drawRRect(body, _f(const Color(0xFF2E2E36)));
+  c.drawRRect(body, _s(C.ink, 2));
+  c.drawCircle(const Offset(-16, 0), 3.5, _f(const Color(0xFFE53935)));
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 2; j++) {
+      c.drawCircle(Offset(-4.0 + i * 8, -3.5 + j * 7), 2, _f(const Color(0xFFB8B8C8)));
+    }
+  }
+  c.restore();
 }
 
 /// The famous blue plastic slipper with a red strap (top-down-ish view).

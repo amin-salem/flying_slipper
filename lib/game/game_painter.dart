@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 import 'characters.dart';
+import 'house_decor.dart';
 import 'world.dart';
 
 /// Draws one frame of the game.
@@ -30,7 +31,7 @@ class GamePainter extends CustomPainter {
     _background(canvas, vs);
     _coins(canvas);
     _obstacles(canvas);
-    _mom(canvas);
+    _parent(canvas);
     _warning(canvas);
     _kid(canvas);
     _slippers(canvas);
@@ -87,11 +88,20 @@ class GamePainter extends CustomPainter {
       c.drawCircle(Offset(x + 20, friezeY + 17), 2.5, star);
     }
 
-    // Orosi windows (colourful stained glass) – far layer
-    final winScroll = (w.traveled * 0.35) % 520;
-    for (double x = 40 - winScroll; x < size.width + 300; x += 520) {
-      _orosi(c, Rect.fromLTWH(x, winTop, 150, winH));
-      _frame(c, Offset(x + 300, winTop + 40));
+    // The family wall: stained-glass windows, wedding photo, baby photo,
+    // calligraphy, Grandpa, the bad report card... (scrolls a bit slower)
+    const slotW = 230.0;
+    final scroll = w.traveled * 0.5;
+    final first = (scroll / slotW).floor();
+    final slotH = floorY - 60 - winTop;
+    for (int k = first; k * slotW - scroll < size.width + slotW; k++) {
+      final x = k * slotW - scroll;
+      final item = WallItem.values[k % WallItem.values.length];
+      if (item == WallItem.orosi) {
+        _orosi(c, Rect.fromLTWH(x + 40, winTop, 150, winH));
+      } else {
+        drawWallItem(c, item, Rect.fromLTWH(x, winTop, slotW, slotH), w.time);
+      }
     }
 
     // Cushions (poshti) along the wall – mid layer
@@ -202,21 +212,6 @@ class GamePainter extends CustomPainter {
           ..strokeWidth = 5);
   }
 
-  void _frame(Canvas c, Offset at) {
-    final r = Rect.fromLTWH(at.dx, at.dy, 70, 86);
-    c.drawRRect(RRect.fromRectAndRadius(r.inflate(6), const Radius.circular(6)),
-        Paint()..color = C.goldDark);
-    c.drawRect(r, Paint()..color = const Color(0xFFFFF7EA));
-    // tiny family portrait: two smiling heads
-    final skin = Paint()..color = C.skin;
-    c.drawCircle(r.center + const Offset(-14, -4), 12, skin);
-    c.drawCircle(r.center + const Offset(14, -2), 11, skin);
-    c.drawCircle(r.center + const Offset(-14, -10), 12, Paint()..color = const Color(0xFFFF5C8A));
-    c.drawCircle(r.center + const Offset(14, -9), 9, Paint()..color = C.ink);
-    c.drawRect(Rect.fromLTWH(r.left + 6, r.bottom - 22, r.width - 12, 16),
-        Paint()..color = const Color(0xFF8E5BD6));
-  }
-
   void _cushion(Canvas c, Rect r, Color color) {
     final rr = RRect.fromRectAndRadius(r, const Radius.circular(12));
     c.drawRRect(rr.shift(const Offset(0, 4)), Paint()..color = const Color(0x33000000));
@@ -263,6 +258,15 @@ class GamePainter extends CustomPainter {
     for (final h in w.hazards) {
       if (h.isSlipper) continue;
       final s = obstacleSize(h.kind!);
+      if (h.kicked) {
+        c.save();
+        c.translate(h.x, h.y - s.height / 2);
+        c.rotate(h.rot);
+        c.translate(-h.x, -(h.y - s.height / 2));
+        _obstacle(c, h.kind!, Offset(h.x, h.y), 0);
+        c.restore();
+        continue;
+      }
       // shadow
       final shadowW = s.width * (1 - h.hop / 120);
       c.drawOval(
@@ -272,30 +276,57 @@ class GamePainter extends CustomPainter {
     }
   }
 
-  void _mom(Canvas c) {
-    drawMom(c, Offset(w.momX, w.floorY + 4), 0.95,
+  void _parent(Canvas c) {
+    final feet = Offset(w.parentX, w.floorY + 4);
+    const scale = 0.95;
+    if (w.shownParent == Parent.mom) {
+      drawMom(c, feet, scale,
+          time: w.time,
+          windup: w.windup,
+          release: w.release,
+          anger: w.anger,
+          shouting: w.shoutTimer > 0,
+          calm: w.calm > 0,
+          twirl: w.twirl);
+      return;
+    }
+    Offset? reach;
+    if (w.whipT > 0) {
+      reach = Offset((w.whipStartX - feet.dx) / scale, (w.whipY - feet.dy) / scale);
+    }
+    drawDad(c, feet, scale,
         time: w.time,
         windup: w.windup,
-        release: w.release,
+        twirl: w.twirl,
         anger: w.anger,
         shouting: w.shoutTimer > 0,
-        calm: w.calm > 0);
+        calm: w.calm > 0,
+        reach: reach);
+    if (w.whipT > 0) {
+      drawBeltWhip(c, Offset(w.whipStartX, w.whipY), Offset(w.whipTipX, w.whipY), w.time);
+    }
   }
 
   void _warning(Canvas c) {
     final kind = w.warning;
     if (kind == null) return;
+    final stayDown = kind == ThrowKind.high || kind == ThrowKind.whipHigh;
     final y = switch (kind) {
       ThrowKind.high => w.floorY - 116,
+      ThrowKind.whipHigh => w.floorY - 112,
+      ThrowKind.whipLow => w.floorY - 34,
       ThrowKind.bounce => w.floorY - 20,
       _ => w.floorY - 42,
     };
-    final color = kind == ThrowKind.high ? C.teal : (kind == ThrowKind.bounce ? C.goldDark : C.red);
+    final color = stayDown ? C.teal : (kind == ThrowKind.bounce ? C.goldDark : C.red);
     final label = switch (kind) {
       ThrowKind.high => 'نپر!',
+      ThrowKind.whipHigh => 'نپر!',
       ThrowKind.bounce => 'صبر کن...',
       ThrowKind.twin => 'دوتا!',
       ThrowKind.low => 'بپر!',
+      ThrowKind.whipLow => 'بپر!',
+      ThrowKind.remote => 'بپر!',
     };
     final x = w.kidX - 70;
     final pulse = 1 + 0.18 * sin(w.time * 22);
@@ -304,7 +335,7 @@ class GamePainter extends CustomPainter {
       ..color = color.withAlpha(150)
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
-    for (double dx = w.momX + 90; dx < w.kidX - 20; dx += 14) {
+    for (double dx = w.parentX + 90; dx < w.kidX - 20; dx += 14) {
       c.drawLine(Offset(dx, y), Offset(dx + 5, y), dash);
     }
     final p = Offset(x, y - 42);
@@ -314,7 +345,7 @@ class GamePainter extends CustomPainter {
       ..color = C.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3);
-    _outlinedText(c, kind == ThrowKind.high ? '↓' : '!', p, 20, C.white, stroke: false);
+    _outlinedText(c, stayDown ? '↓' : '!', p, 20, C.white, stroke: false);
     _outlinedText(c, label, p + const Offset(0, 30), 15, color);
   }
 
@@ -336,7 +367,20 @@ class GamePainter extends CustomPainter {
           tilt: w.tilt,
           mood: w.dying > 0 ? Mood.hurt : null,
           time: w.time,
-          blink: w.blinking);
+          blink: w.blinking,
+          gliding: w.gliding,
+          spin: w.flip > 0 ? -(1 - w.flip) * 2 * pi : 0.0);
+    }
+    if (w.ability.kickCooldown > 0 && w.kickReady >= 1 && w.dying <= 0) {
+      // football ready: a little glowing ball at the kid's feet
+      final bp = feet + const Offset(20, -9);
+      c.drawCircle(bp, 13, Paint()..color = Color.fromARGB((90 + 60 * sin(w.time * 8)).round(), 255, 255, 255));
+      c.drawCircle(bp, 8, Paint()..color = C.white);
+      c.drawCircle(bp, 8, Paint()
+        ..color = C.ink
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2);
+      c.drawCircle(bp, 3, Paint()..color = C.ink);
     }
     if (w.shield) {
       final center = feet + const Offset(2, -52);
@@ -365,7 +409,11 @@ class GamePainter extends CustomPainter {
   void _slippers(Canvas c) {
     for (final h in w.hazards) {
       if (!h.isSlipper) continue;
-      drawSlipper(c, Offset(h.x, h.y), 50, h.rot);
+      if (h.isRemote) {
+        drawRemote(c, Offset(h.x, h.y), 46, h.rot);
+      } else {
+        drawSlipper(c, Offset(h.x, h.y), 50, h.rot);
+      }
     }
   }
 
@@ -427,7 +475,8 @@ class GamePainter extends CustomPainter {
       textDirection: TextDirection.rtl,
       maxLines: 1,
     )..layout(maxWidth: size.width * 0.6);
-    final anchor = Offset(max(8.0, w.momX + 40), w.floorY - 190);
+    final anchor = Offset(max(8.0, w.parentX + 40),
+        w.floorY - (w.shownParent == Parent.dad ? 225 : 190));
     final r = Rect.fromLTWH(anchor.dx, anchor.dy - tp.height - 16, tp.width + 26, tp.height + 16);
     final pop = (w.shoutTimer > 1.4) ? 0.9 : 1.0;
     c.save();
@@ -601,6 +650,103 @@ class GamePainter extends CustomPainter {
           final tt = (w.time * 1.2 + i * 0.5) % 1.0;
           c.drawCircle(Offset(r.center.dx + i * 6 - 3, r.top - tt * 22), 3 + tt * 4,
               Paint()..color = Color.fromARGB((160 * (1 - tt)).round(), 255, 255, 255));
+        }
+        break;
+      case ObstacleKind.teaTray:
+        // silver tray with tulip tea glasses and sugar cubes
+        final tray = Rect.fromLTWH(r.left, r.bottom - 8, r.width, 8);
+        c.drawOval(tray, Paint()..color = const Color(0xFFD9DDE6));
+        c.drawOval(tray, outline);
+        for (int i = 0; i < 3; i++) {
+          final x = r.left + 14 + i * 19.0;
+          final glass = Path()
+            ..moveTo(x - 6, r.top)
+            ..quadraticBezierTo(x - 2, r.top + 10, x - 5, r.bottom - 6)
+            ..lineTo(x + 5, r.bottom - 6)
+            ..quadraticBezierTo(x + 2, r.top + 10, x + 6, r.top)
+            ..close();
+          c.drawPath(glass, Paint()..color = const Color(0xDDB84A1E));
+          c.drawPath(glass, Paint()
+            ..color = C.ink
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6);
+          c.drawLine(Offset(x - 6, r.top + 2), Offset(x + 6, r.top + 2),
+              Paint()
+                ..color = C.gold
+                ..strokeWidth = 2);
+        }
+        c.drawRect(Rect.fromLTWH(r.right - 12, r.bottom - 15, 7, 7), Paint()..color = C.white);
+        break;
+      case ObstacleKind.cat:
+        // sleeping cat curled up on the rug; ears twitch
+        final catBody = Rect.fromLTWH(r.left + 4, r.top + 8, r.width - 8, r.height - 8);
+        c.drawOval(catBody, Paint()..color = const Color(0xFFF2A65A));
+        // stripes
+        for (int i = 0; i < 3; i++) {
+          c.drawArc(Rect.fromCenter(center: catBody.center + Offset(-8.0 + i * 9, 0), width: 10, height: catBody.height * 0.8),
+              pi * 1.2, pi * 0.6, false,
+              Paint()
+                ..color = const Color(0xFFC8742A)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 3);
+        }
+        c.drawOval(catBody, outline);
+        // tail
+        c.drawArc(Rect.fromCenter(center: Offset(catBody.left + 6, catBody.bottom - 6), width: 26, height: 16),
+            pi * 0.5, pi, false,
+            Paint()
+              ..color = const Color(0xFFF2A65A)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 6
+              ..strokeCap = StrokeCap.round);
+        // head
+        final catHead = Offset(catBody.right - 10, catBody.top + 10);
+        final twitch = sin(w.time * 3).abs() > 0.95 ? -3.0 : 0.0;
+        for (final dx in [-8.0, 6.0]) {
+          final ear = Path()
+            ..moveTo(catHead.dx + dx - 4, catHead.dy - 8)
+            ..lineTo(catHead.dx + dx + 1, catHead.dy - 20 + twitch)
+            ..lineTo(catHead.dx + dx + 6, catHead.dy - 8)
+            ..close();
+          c.drawPath(ear, Paint()..color = const Color(0xFFF2A65A));
+          c.drawPath(ear, outline);
+        }
+        c.drawCircle(catHead, 12, Paint()..color = const Color(0xFFF2A65A));
+        c.drawCircle(catHead, 12, outline);
+        final eye = Paint()
+          ..color = C.ink
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8;
+        c.drawArc(Rect.fromCenter(center: catHead + const Offset(-5, 0), width: 6, height: 4), 0, pi, false, eye);
+        c.drawArc(Rect.fromCenter(center: catHead + const Offset(5, 0), width: 6, height: 4), 0, pi, false, eye);
+        c.drawCircle(catHead + const Offset(0, 4), 1.6, Paint()..color = const Color(0xFFFF7A9A));
+        // zzz
+        final zt = (w.time * 0.7) % 1.0;
+        _outlinedText(c, 'z', catHead + Offset(10 + zt * 8, -22 - zt * 14), 12, C.inkSoft,
+            alpha: 1 - zt);
+        break;
+      case ObstacleKind.geranium:
+        // Mom's precious geranium pot (شمعدونی)
+        final flowerPot = Path()
+          ..moveTo(r.left + 6, r.bottom - 26)
+          ..lineTo(r.right - 6, r.bottom - 26)
+          ..lineTo(r.right - 10, r.bottom)
+          ..lineTo(r.left + 10, r.bottom)
+          ..close();
+        c.drawPath(flowerPot, Paint()..color = const Color(0xFFC8693A));
+        c.drawPath(flowerPot, outline);
+        c.drawRect(Rect.fromLTWH(r.left + 3, r.bottom - 30, r.width - 6, 6),
+            Paint()..color = const Color(0xFFA9532B));
+        final leaf = Paint()..color = const Color(0xFF3FAE4A);
+        for (int i = 0; i < 4; i++) {
+          c.drawCircle(Offset(r.left + 10 + i * 8.0, r.bottom - 34 - (i.isOdd ? 4 : 0)), 7, leaf);
+        }
+        for (final f in [Offset(r.left + 12, r.top + 12), Offset(r.right - 12, r.top + 8), Offset(r.center.dx, r.top + 2)]) {
+          for (int k = 0; k < 5; k++) {
+            final a = k * 2 * pi / 5;
+            c.drawCircle(f + Offset(cos(a) * 4, sin(a) * 4), 3.6, Paint()..color = const Color(0xFFE53935));
+          }
+          c.drawCircle(f, 2, Paint()..color = C.gold);
         }
         break;
     }
