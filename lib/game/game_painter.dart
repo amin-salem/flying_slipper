@@ -726,48 +726,118 @@ class GamePainter extends CustomPainter {
     return path..close();
   }
 
+  // ---------------------------------------------------------------- 3D obstacles
+
+  static Color _lighter(Color c, double t) => Color.lerp(c, const Color(0xFFFFFFFF), t)!;
+  static Color _darker(Color c, double t) => Color.lerp(c, const Color(0xFF1E1028), t)!;
+
+  /// Round things (vases, pots, glasses): lit from the left, dark on the right.
+  static Paint _cyl(Rect r, Color base) => Paint()
+    ..shader = LinearGradient(
+      colors: [_lighter(base, 0.35), base, _darker(base, 0.25), _darker(base, 0.45)],
+      stops: const [0, 0.35, 0.8, 1],
+    ).createShader(r);
+
+  /// Ball-like things: a sphere lit from the upper left.
+  static Paint _sphere(Rect r, Color base) => Paint()
+    ..shader = RadialGradient(
+      center: const Alignment(-0.35, -0.45),
+      radius: 0.85,
+      colors: [_lighter(base, 0.45), base, _darker(base, 0.4)],
+      stops: const [0, 0.5, 1],
+    ).createShader(r);
+
+  /// How the obstacle's "depth" shows on screen: the top always (the camera
+  /// is a bit above) and the side that faces the middle of the screen, so
+  /// things turn a little as they pass by - like a real 3D camera.
+  Offset _depthFor(double x) => Offset(((w.size.width * 0.5 - x) * 0.035).clamp(-10.0, 10.0), -8);
+
+  /// A solid box: front face, top face and one side face.
+  void _box(Canvas c, Rect f, Offset d, Color col, Paint outline, {Color? top}) {
+    final topFace = Path()
+      ..moveTo(f.left, f.top)
+      ..lineTo(f.right, f.top)
+      ..lineTo(f.right + d.dx, f.top + d.dy)
+      ..lineTo(f.left + d.dx, f.top + d.dy)
+      ..close();
+    final sx = d.dx >= 0 ? f.right : f.left;
+    final side = Path()
+      ..moveTo(sx, f.top)
+      ..lineTo(sx + d.dx, f.top + d.dy)
+      ..lineTo(sx + d.dx, f.bottom + d.dy)
+      ..lineTo(sx, f.bottom)
+      ..close();
+    if (d.dx.abs() > 0.5) {
+      c.drawPath(side, Paint()..color = _darker(col, d.dx > 0 ? 0.35 : 0.15));
+      c.drawPath(side, outline);
+    }
+    c.drawPath(topFace, Paint()..color = top ?? _lighter(col, 0.3));
+    c.drawPath(topFace, outline);
+    c.drawRect(
+        f,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [col, _darker(col, 0.12)],
+          ).createShader(f));
+    c.drawRect(f, outline);
+  }
+
   void _obstacle(Canvas c, ObstacleKind k, Offset base, double spin) {
     final s = obstacleSize(k);
     final r = Rect.fromLTWH(base.dx - s.width / 2, base.dy - s.height, s.width, s.height);
+    final d = _depthFor(base.dx);
     final outline = Paint()
       ..color = C.ink
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.6
+      ..strokeWidth = 2.4
       ..strokeJoin = StrokeJoin.round;
+    final shine = Paint()..color = const Color(0x77FFFFFF);
     switch (k) {
       case ObstacleKind.vase:
+        // a round blue-and-white Persian vase, open on top
+        const blue = Color(0xFF2F6BFF);
         final p = Path()
-          ..moveTo(r.left + 13, r.top)
-          ..lineTo(r.right - 13, r.top)
-          ..lineTo(r.right - 14, r.top + 8)
-          ..quadraticBezierTo(r.right + 6, r.top + 26, r.right - 4, r.bottom - 8)
-          ..quadraticBezierTo(r.center.dx, r.bottom + 4, r.left + 4, r.bottom - 8)
-          ..quadraticBezierTo(r.left - 6, r.top + 26, r.left + 14, r.top + 8)
+          ..moveTo(r.left + 12, r.top + 4)
+          ..lineTo(r.right - 12, r.top + 4)
+          ..lineTo(r.right - 13, r.top + 10)
+          ..quadraticBezierTo(r.right + 7, r.top + 28, r.right - 4, r.bottom - 6)
+          ..quadraticBezierTo(r.center.dx, r.bottom + 3, r.left + 4, r.bottom - 6)
+          ..quadraticBezierTo(r.left - 7, r.top + 28, r.left + 13, r.top + 10)
           ..close();
-        c.drawPath(p, Paint()..color = const Color(0xFF2F6BFF));
+        c.drawPath(p, _cyl(r, blue));
         c.save();
         c.clipPath(p);
-        c.drawRect(Rect.fromLTWH(r.left - 6, r.top + 24, r.width + 12, 14), Paint()..color = C.white);
+        final band = Rect.fromLTWH(r.left - 8, r.top + 26, r.width + 16, 14);
+        c.drawRect(band, _cyl(r, const Color(0xFFF4F1EA)));
         for (double x = r.left; x < r.right; x += 10) {
-          c.drawCircle(Offset(x + 5, r.top + 31), 3, Paint()..color = const Color(0xFF2F6BFF));
+          c.drawCircle(Offset(x + 5, r.top + 33), 3, Paint()..color = blue);
         }
-        c.drawRect(Rect.fromLTWH(r.left, r.top, 10, r.height), Paint()..color = const Color(0x33FFFFFF));
+        // glossy glaze highlight
+        c.drawOval(Rect.fromLTWH(r.left + 5, r.top + 12, 7, r.height - 26), shine);
         c.restore();
         c.drawPath(p, outline);
-        // flowers sticking out
+        // the opening: rim + dark inside
+        final mouth = Rect.fromCenter(center: Offset(r.center.dx + d.dx * 0.3, r.top + 4), width: r.width - 22, height: 9);
+        c.drawOval(mouth, Paint()..color = _lighter(blue, 0.2));
+        c.drawOval(mouth.deflate(2.5), Paint()..color = const Color(0xFF14204A));
+        c.drawOval(mouth, outline);
         for (int i = -1; i <= 1; i++) {
-          c.drawLine(Offset(r.center.dx + i * 4, r.top), Offset(r.center.dx + i * 10, r.top - 14),
+          final tip = Offset(r.center.dx + i * 10 + d.dx * 0.4, r.top - 12);
+          c.drawLine(Offset(r.center.dx + i * 3, r.top + 3), tip,
               Paint()
                 ..color = const Color(0xFF2E9B4E)
                 ..strokeWidth = 2.5);
-          c.drawCircle(Offset(r.center.dx + i * 10, r.top - 16), 5,
-              Paint()..color = i == 0 ? C.red : C.gold);
+          final fr = Rect.fromCircle(center: tip + const Offset(0, -3), radius: 5.5);
+          c.drawOval(fr, _sphere(fr, i == 0 ? C.red : C.gold));
         }
-        break;
       case ObstacleKind.ball:
         final center = r.center;
         final rad = s.width / 2;
+        final circle = Rect.fromCircle(center: center, radius: rad);
         c.save();
+        c.clipPath(Path()..addOval(circle));
         c.translate(center.dx, center.dy);
         c.rotate(spin);
         const cols = [Color(0xFFFF5A4E), Color(0xFFFFFFFF), Color(0xFF2F6BFF), Color(0xFFFFD34D)];
@@ -776,103 +846,149 @@ class GamePainter extends CustomPainter {
               Paint()..color = cols[i]);
         }
         c.restore();
-        c.drawCircle(center + Offset(-rad * 0.35, -rad * 0.35), rad * 0.25, Paint()..color = const Color(0x88FFFFFF));
+        // sphere shading on top of the colours
+        c.drawOval(
+            circle,
+            Paint()
+              ..shader = const RadialGradient(
+                center: Alignment(-0.35, -0.45),
+                radius: 1.0,
+                colors: [Color(0x00000000), Color(0x00000000), Color(0x77251530)],
+                stops: [0, 0.45, 1],
+              ).createShader(circle));
+        c.drawOval(Rect.fromCenter(center: center + Offset(-rad * 0.38, -rad * 0.42), width: rad * 0.55, height: rad * 0.38),
+            Paint()..color = const Color(0xBBFFFFFF));
         c.drawCircle(center, rad, outline);
-        break;
       case ObstacleKind.books:
-        const cols = [Color(0xFFE53935), Color(0xFFFFC23D), Color(0xFF1FA463)];
+        // a stack of real boxy books
+        const bookCols = [Color(0xFF1FA463), Color(0xFFFFC23D), Color(0xFFE53935)];
+        const bookH = 13.3;
         for (int i = 0; i < 3; i++) {
-          final br = RRect.fromRectAndRadius(
-              Rect.fromLTWH(r.left + (i == 1 ? 6 : (i == 2 ? 2 : 0)), r.top + i * 13.3, s.width - 6, 13.3),
-              const Radius.circular(2));
-          c.drawRRect(br, Paint()..color = cols[2 - i]);
-          c.drawRect(Rect.fromLTWH(br.left + br.width - 10, br.top + 3, 8, br.height - 6),
-              Paint()..color = const Color(0xFFFFF7EA));
-          c.drawRRect(br, outline);
+          final shift = i == 1 ? 5.0 : (i == 2 ? 1.0 : -1.0);
+          final f = Rect.fromLTWH(r.left + shift, r.bottom - (i + 1) * bookH, s.width - 8, bookH);
+          // only the top book shows its cover from above
+          _box(c, f, d, bookCols[i], outline,
+              top: i == 2 ? _lighter(bookCols[i], 0.25) : null);
+          // page edges on the spine side
+          c.drawRect(Rect.fromLTWH(f.right - 10, f.top + 3, 8, f.height - 6), Paint()..color = const Color(0xFFFFF7EA));
+          for (double y = f.top + 5; y < f.bottom - 3; y += 2.5) {
+            c.drawLine(Offset(f.right - 10, y), Offset(f.right - 2, y),
+                Paint()
+                  ..color = const Color(0xFFD9CBB0)
+                  ..strokeWidth = 0.8);
+          }
+          // gold title line
+          c.drawLine(Offset(f.left + 6, f.center.dy), Offset(f.left + 22, f.center.dy),
+              Paint()
+                ..color = const Color(0xCCFFE08A)
+                ..strokeWidth = 2);
         }
-        break;
       case ObstacleKind.samovar:
-        // brass samovar with a teapot on top
+        // shiny brass samovar (a cylinder) with a teapot on top
+        const brass = Color(0xFFE0A531);
         final body = Path()
-          ..moveTo(r.left + 6, r.bottom - 8)
+          ..moveTo(r.left + 6, r.bottom - 10)
           ..lineTo(r.left + 2, r.top + 30)
           ..quadraticBezierTo(r.center.dx, r.top + 18, r.right - 2, r.top + 30)
-          ..lineTo(r.right - 6, r.bottom - 8)
+          ..lineTo(r.right - 6, r.bottom - 10)
           ..close();
-        final brass = Paint()
-          ..shader = const LinearGradient(colors: [Color(0xFFFFE08A), Color(0xFFE0A531), Color(0xFFB57412)])
-              .createShader(r);
-        c.drawPath(body, brass);
+        c.drawPath(body, _cyl(r, brass));
+        c.save();
+        c.clipPath(body);
+        // metal reflections
+        c.drawRect(Rect.fromLTWH(r.left + 8, r.top, 5, r.height), Paint()..color = const Color(0x99FFF6CC));
+        c.drawRect(Rect.fromLTWH(r.left + 16, r.top, 2, r.height), Paint()..color = const Color(0x55FFF6CC));
+        c.drawRect(Rect.fromLTWH(r.left, r.top + 44, r.width, 4), Paint()..color = const Color(0x55804C08));
+        c.restore();
         c.drawPath(body, outline);
-        final foot = Rect.fromLTWH(r.left + 8, r.bottom - 10, s.width - 16, 10);
-        c.drawRect(foot, brass);
+        final foot = Rect.fromLTWH(r.left + 8, r.bottom - 12, s.width - 16, 12);
+        c.drawRect(foot, _cyl(foot, _darker(brass, 0.1)));
+        c.drawOval(Rect.fromLTWH(foot.left, foot.bottom - 4, foot.width, 8), _cyl(foot, _darker(brass, 0.2)));
         c.drawRect(foot, outline);
         // tap
-        c.drawLine(Offset(r.right - 4, r.bottom - 26), Offset(r.right + 6, r.bottom - 22),
+        c.drawLine(Offset(r.right - 4, r.bottom - 28), Offset(r.right + 7, r.bottom - 23),
             Paint()
               ..color = C.ink
               ..strokeWidth = 4
               ..strokeCap = StrokeCap.round);
-        // teapot
-        final pot = Rect.fromCenter(center: Offset(r.center.dx, r.top + 14), width: 26, height: 18);
-        c.drawOval(pot, Paint()..color = C.white);
-        c.drawOval(pot.deflate(5), Paint()..color = const Color(0xFF2F6BFF));
+        // teapot: a little sphere
+        final pot = Rect.fromCenter(center: Offset(r.center.dx, r.top + 13), width: 27, height: 20);
+        c.drawOval(pot, _sphere(pot, C.white));
+        c.drawOval(pot.deflate(6), _sphere(pot.deflate(6), const Color(0xFF2F6BFF)));
         c.drawOval(pot, outline);
-        // steam
+        final lid = Rect.fromCenter(center: Offset(r.center.dx, r.top + 3), width: 10, height: 6);
+        c.drawOval(lid, _sphere(lid, C.white));
+        c.drawOval(lid, outline);
         for (int i = 0; i < 2; i++) {
           final tt = (w.time * 1.2 + i * 0.5) % 1.0;
-          c.drawCircle(Offset(r.center.dx + i * 6 - 3, r.top - tt * 22), 3 + tt * 4,
+          c.drawCircle(Offset(r.center.dx + i * 6 - 3, r.top - 4 - tt * 22), 3 + tt * 4,
               Paint()..color = Color.fromARGB((160 * (1 - tt)).round(), 255, 255, 255));
         }
-        break;
       case ObstacleKind.teaTray:
-        // silver tray with tulip tea glasses and sugar cubes
-        final tray = Rect.fromLTWH(r.left, r.bottom - 8, r.width, 8);
-        c.drawOval(tray, Paint()..color = const Color(0xFFD9DDE6));
-        c.drawOval(tray, outline);
+        // silver tray (with a rim you can see) and tulip glasses of tea
+        final trayTop = Rect.fromLTWH(r.left, r.bottom - 14, r.width, 12);
+        c.drawOval(trayTop.shift(const Offset(0, 4)), Paint()..color = const Color(0xFF8E94A3));
+        c.drawOval(trayTop, Paint()
+          ..shader = const LinearGradient(
+            colors: [Color(0xFFFFFFFF), Color(0xFFD9DDE6), Color(0xFFA9AFBD)],
+          ).createShader(trayTop));
+        c.drawOval(trayTop.deflate(3), Paint()..color = const Color(0xFFC5CAD6));
+        c.drawOval(trayTop.shift(const Offset(0, 4)), outline);
+        c.drawOval(trayTop, outline);
         for (int i = 0; i < 3; i++) {
-          final x = r.left + 14 + i * 19.0;
+          final x = r.left + 15 + i * 18.0;
+          final gTop = r.top + (i == 1 ? -2 : 0);
+          final gBot = r.bottom - 9;
           final glass = Path()
-            ..moveTo(x - 6, r.top)
-            ..quadraticBezierTo(x - 2, r.top + 10, x - 5, r.bottom - 6)
-            ..lineTo(x + 5, r.bottom - 6)
-            ..quadraticBezierTo(x + 2, r.top + 10, x + 6, r.top)
+            ..moveTo(x - 6, gTop)
+            ..quadraticBezierTo(x - 2, gTop + 10, x - 5, gBot)
+            ..lineTo(x + 5, gBot)
+            ..quadraticBezierTo(x + 2, gTop + 10, x + 6, gTop)
             ..close();
-          c.drawPath(glass, Paint()..color = const Color(0xDDB84A1E));
+          final gr = Rect.fromLTRB(x - 6, gTop, x + 6, gBot);
+          c.drawPath(glass, _cyl(gr, const Color(0xEEB84A1E)));
+          c.drawLine(Offset(x - 3.5, gTop + 4), Offset(x - 3, gBot - 3), Paint()
+            ..color = const Color(0x88FFFFFF)
+            ..strokeWidth = 1.6);
           c.drawPath(glass, Paint()
             ..color = C.ink
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6);
-          c.drawLine(Offset(x - 6, r.top + 2), Offset(x + 6, r.top + 2),
-              Paint()
-                ..color = C.gold
-                ..strokeWidth = 2);
+            ..strokeWidth = 1.5);
+          // tea surface seen from above
+          final top = Rect.fromCenter(center: Offset(x, gTop + 1), width: 12, height: 4);
+          c.drawOval(top, Paint()..color = const Color(0xFFD2691E));
+          c.drawOval(top, Paint()
+            ..color = C.gold
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4);
         }
-        c.drawRect(Rect.fromLTWH(r.right - 12, r.bottom - 15, 7, 7), Paint()..color = C.white);
-        break;
+        // a sugar cube (a tiny box)
+        _box(c, Rect.fromLTWH(r.right - 13, r.bottom - 16, 7, 7), Offset(d.dx * 0.3, -3), C.white,
+            Paint()
+              ..color = C.ink
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1);
       case ObstacleKind.cat:
-        // sleeping cat curled up on the rug; ears twitch
+        // a round, fluffy sleeping cat; ears twitch
+        const fur = Color(0xFFF2A65A);
         final catBody = Rect.fromLTWH(r.left + 4, r.top + 8, r.width - 8, r.height - 8);
-        c.drawOval(catBody, Paint()..color = const Color(0xFFF2A65A));
-        // stripes
+        c.drawOval(catBody, _sphere(catBody, fur));
         for (int i = 0; i < 3; i++) {
           c.drawArc(Rect.fromCenter(center: catBody.center + Offset(-8.0 + i * 9, 0), width: 10, height: catBody.height * 0.8),
               pi * 1.2, pi * 0.6, false,
               Paint()
-                ..color = const Color(0xFFC8742A)
+                ..color = const Color(0xAAC8742A)
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 3);
         }
         c.drawOval(catBody, outline);
-        // tail
         c.drawArc(Rect.fromCenter(center: Offset(catBody.left + 6, catBody.bottom - 6), width: 26, height: 16),
             pi * 0.5, pi, false,
             Paint()
-              ..color = const Color(0xFFF2A65A)
+              ..color = _darker(fur, 0.1)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 6
               ..strokeCap = StrokeCap.round);
-        // head
         final catHead = Offset(catBody.right - 10, catBody.top + 10);
         final twitch = sin(w.time * 3).abs() > 0.95 ? -3.0 : 0.0;
         for (final dx in [-8.0, 6.0]) {
@@ -881,11 +997,16 @@ class GamePainter extends CustomPainter {
             ..lineTo(catHead.dx + dx + 1, catHead.dy - 20 + twitch)
             ..lineTo(catHead.dx + dx + 6, catHead.dy - 8)
             ..close();
-          c.drawPath(ear, Paint()..color = const Color(0xFFF2A65A));
+          c.drawPath(ear, Paint()..color = fur);
           c.drawPath(ear, outline);
+          c.drawLine(Offset(catHead.dx + dx + 1, catHead.dy - 16 + twitch), Offset(catHead.dx + dx + 1, catHead.dy - 9),
+              Paint()
+                ..color = const Color(0xFFFF9EB5)
+                ..strokeWidth = 2.5);
         }
-        c.drawCircle(catHead, 12, Paint()..color = const Color(0xFFF2A65A));
-        c.drawCircle(catHead, 12, outline);
+        final head = Rect.fromCircle(center: catHead, radius: 12);
+        c.drawOval(head, _sphere(head, fur));
+        c.drawOval(head, outline);
         final eye = Paint()
           ..color = C.ink
           ..style = PaintingStyle.stroke
@@ -893,35 +1014,41 @@ class GamePainter extends CustomPainter {
         c.drawArc(Rect.fromCenter(center: catHead + const Offset(-5, 0), width: 6, height: 4), 0, pi, false, eye);
         c.drawArc(Rect.fromCenter(center: catHead + const Offset(5, 0), width: 6, height: 4), 0, pi, false, eye);
         c.drawCircle(catHead + const Offset(0, 4), 1.6, Paint()..color = const Color(0xFFFF7A9A));
-        // zzz
         final zt = (w.time * 0.7) % 1.0;
         _outlinedText(c, 'z', catHead + Offset(10 + zt * 8, -22 - zt * 14), 12, C.inkSoft,
             alpha: 1 - zt);
-        break;
       case ObstacleKind.geranium:
-        // Mom's precious geranium pot (شمعدونی)
+        // Mom's precious geranium in a clay pot (a cone you can look into)
+        const clay = Color(0xFFC8693A);
+        final pr = Rect.fromLTRB(r.left + 6, r.bottom - 26, r.right - 6, r.bottom);
         final flowerPot = Path()
-          ..moveTo(r.left + 6, r.bottom - 26)
-          ..lineTo(r.right - 6, r.bottom - 26)
-          ..lineTo(r.right - 10, r.bottom)
-          ..lineTo(r.left + 10, r.bottom)
+          ..moveTo(pr.left, pr.top)
+          ..lineTo(pr.right, pr.top)
+          ..lineTo(pr.right - 4, pr.bottom - 3)
+          ..quadraticBezierTo(pr.center.dx, pr.bottom + 3, pr.left + 4, pr.bottom - 3)
           ..close();
-        c.drawPath(flowerPot, Paint()..color = const Color(0xFFC8693A));
+        c.drawPath(flowerPot, _cyl(pr, clay));
         c.drawPath(flowerPot, outline);
-        c.drawRect(Rect.fromLTWH(r.left + 3, r.bottom - 30, r.width - 6, 6),
-            Paint()..color = const Color(0xFFA9532B));
-        final leaf = Paint()..color = const Color(0xFF3FAE4A);
+        // rim (a ring seen from above) with soil inside
+        final rim = Rect.fromCenter(center: Offset(r.center.dx + d.dx * 0.3, pr.top), width: r.width - 4, height: 10);
+        c.drawOval(rim, _cyl(rim, _darker(clay, 0.1)));
+        c.drawOval(rim.deflate(3), Paint()..color = const Color(0xFF5A3A22));
+        c.drawOval(rim, outline);
+        // leaves: little shaded balls
         for (int i = 0; i < 4; i++) {
-          c.drawCircle(Offset(r.left + 10 + i * 8.0, r.bottom - 34 - (i.isOdd ? 4 : 0)), 7, leaf);
+          final lc = Offset(r.left + 10 + i * 7.5 + d.dx * 0.3, pr.top - 5 - (i.isOdd ? 4 : 0));
+          final lr = Rect.fromCircle(center: lc, radius: 7);
+          c.drawOval(lr, _sphere(lr, const Color(0xFF3FAE4A)));
         }
         for (final f in [Offset(r.left + 12, r.top + 12), Offset(r.right - 12, r.top + 8), Offset(r.center.dx, r.top + 2)]) {
+          final fc = f + Offset(d.dx * 0.5, 0);
           for (int k = 0; k < 5; k++) {
             final a = k * 2 * pi / 5;
-            c.drawCircle(f + Offset(cos(a) * 4, sin(a) * 4), 3.6, Paint()..color = const Color(0xFFE53935));
+            final pr2 = Rect.fromCircle(center: fc + Offset(cos(a) * 4, sin(a) * 4), radius: 3.8);
+            c.drawOval(pr2, _sphere(pr2, const Color(0xFFE53935)));
           }
-          c.drawCircle(f, 2, Paint()..color = C.gold);
+          c.drawCircle(fc, 2, Paint()..color = C.gold);
         }
-        break;
     }
   }
 
