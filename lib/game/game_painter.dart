@@ -69,24 +69,31 @@ class GamePainter extends CustomPainter {
   /// Which room the wall/floor at world-distance [units] belongs to.
   Room _room(double units) => units < 0 ? Room.living : roomForMeters(units / 40);
 
+  /// How far in front of the wall the characters run (2.5D depth).
+  static const double backDepth = 42;
+
+  /// Floor perspective: the near (bottom) edge is this much wider.
+  static const double floorSpread = 1.5;
+
   void _background(Canvas c, Size size) {
     final floorY = w.floorY;
-    final winTop = max(floorY * 0.2, floorY - 430);
-    final winH = min(300.0, floorY - 110 - winTop);
+    final wallBase = floorY - backDepth;
+    final winTop = max(wallBase * 0.2, wallBase - 430);
+    final winH = min(300.0, wallBase - 110 - winTop);
     final friezeY = max(14.0, winTop - 56);
 
     // ---- Wall: each slot belongs to a room (scrolls at half speed) ----
     const slotW = 230.0;
     final scroll = w.traveled * 0.5;
     final first = (scroll / slotW).floor();
-    final slotH = floorY - 60 - winTop;
+    final slotH = wallBase - 60 - winTop;
     Room? prev;
     for (int k = first - 1; k * slotW - scroll < size.width + slotW; k++) {
       final x = k * slotW - scroll;
       // the wall moves at half speed: this slot is above the kid when
       // traveled == 2 * (k * slotW - kidX)
       final room = _room((k * slotW - w.kidX) * 2);
-      drawWallBase(c, room, Rect.fromLTWH(x, 0, slotW + 0.5, floorY), friezeY);
+      drawWallBase(c, room, Rect.fromLTWH(x, 0, slotW + 0.5, wallBase), friezeY);
       if (room == Room.living) {
         final item = WallItem.values[k.abs() % WallItem.values.length];
         if (item == WallItem.orosi) {
@@ -98,7 +105,7 @@ class GamePainter extends CustomPainter {
         drawRoomItem(c, room, k.abs(), Rect.fromLTWH(x, winTop, slotW, slotH), w.time);
       }
       if (prev != null && prev != room) {
-        drawDoorway(c, x, max(friezeY + 44, floorY - 260), floorY);
+        drawDoorway(c, x, max(friezeY + 44, wallBase - 260), wallBase);
       }
       prev = room;
     }
@@ -106,35 +113,155 @@ class GamePainter extends CustomPainter {
     // seasonal garland (Yalda / Nowruz)
     drawSeasonGarland(c, currentSeason(), scroll, size.width, friezeY + 40, w.time);
 
+    // wall lighting: soft light from the upper left, darker near the ceiling
+    final wallRect = Rect.fromLTWH(0, 0, size.width, wallBase);
+    c.drawRect(
+        wallRect,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x38251530), Color(0x00251530), Color(0x00251530), Color(0x1A251530)],
+            stops: [0, 0.3, 0.75, 1],
+          ).createShader(wallRect));
+    c.drawRect(
+        wallRect,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0x22FFF4D6), Color(0x00FFF4D6), Color(0x14251530)],
+          ).createShader(wallRect));
+
+    // skirting board along the bottom of the wall (gives the wall a "foot")
+    c.drawRect(Rect.fromLTWH(0, wallBase - 9, size.width, 9),
+        Paint()..color = const Color(0xFF8A5634));
+    c.drawRect(Rect.fromLTWH(0, wallBase - 9, size.width, 2.5),
+        Paint()..color = const Color(0xFFB27A4E));
+
     // ---- Along the wall: cushions / counters / flower beds ----
-    c.drawRect(Rect.fromLTWH(0, floorY - 10, size.width, 10),
-        Paint()..color = const Color(0x22000000));
     const segW = 600.0;
     final ms = w.traveled * 0.6;
     final firstSeg = (ms / segW).floor();
     for (int k = firstSeg; k * segW - ms < size.width + segW; k++) {
       final x = k * segW - ms;
-      drawMidSegment(c, _room((k * segW - w.kidX) / 0.6), x, floorY, w.time);
+      drawMidSegment(c, _room((k * segW - w.kidX) / 0.6), x, wallBase, w.time);
     }
 
-    // ---- Floor (moves at full speed) ----
+    // ---- Floor: a real perspective plane (moves at full speed) ----
+    final vp = size.width * 0.5; // vanishing point x
+    final hs = size.height - wallBase + 2; // floor height on screen
+    final hFlat = hs / floorSpread;
+    final k = (1 - 1 / floorSpread) / hFlat;
+    // depth (flat units) of the row the characters run on
+    final runY = backDepth / (1 + k * backDepth);
+    final wc = 1 - k * runY; // perspective factor at the running row
     const tileW = 90.0;
-    final firstTile = (w.traveled / tileW).floor();
-    for (int j = firstTile; j * tileW - w.traveled < size.width + tileW; j++) {
-      final x = j * tileW - w.traveled;
+    final fScroll = w.traveled * wc;
+    c.save();
+    c.translate(vp, wallBase);
+    c.transform((Matrix4.identity()..setEntry(3, 1, -k)).storage);
+    c.translate(-vp, -wallBase);
+    final firstTile = (fScroll / tileW).floor() - 1;
+    for (int j = firstTile; j * tileW - fScroll < size.width + tileW; j++) {
+      final x = j * tileW - fScroll;
       // the floor under the kid changes exactly when the distance counter
       // reaches the next room
-      drawFloorTile(c, _room(j * tileW - w.kidX), x, floorY, size.height);
+      final units = (j * tileW - vp) / wc + vp - w.kidX;
+      drawFloorTile(c, _room(units), x, wallBase, wallBase + hFlat + 4);
     }
-    // soft shadow where wall meets floor
+    c.restore();
+
+    // floor lighting: dark at the back (near the wall), bright in the
+    // middle where the light falls, slightly dark near the camera
+    final floorRect = Rect.fromLTWH(0, wallBase, size.width, hs);
     c.drawRect(
-        Rect.fromLTWH(0, floorY, size.width, 30),
+        floorRect,
         Paint()
           ..shader = const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x40000000), Color(0x00000000)],
-          ).createShader(Rect.fromLTWH(0, floorY, size.width, 30)));
+            colors: [Color(0x55251530), Color(0x00251530), Color(0x00FFF4D6), Color(0x30251530)],
+            stops: [0, 0.22, 0.5, 1],
+          ).createShader(floorRect));
+    c.drawRect(
+        floorRect,
+        Paint()
+          ..shader = RadialGradient(
+            center: Alignment((w.kidX / size.width) * 2 - 1, -0.55),
+            radius: 0.9,
+            colors: const [Color(0x22FFF6DC), Color(0x00FFF6DC)],
+          ).createShader(floorRect));
+
+    // contact shadow where the wall meets the floor
+    final ao = Rect.fromLTWH(0, wallBase, size.width, 26);
+    c.drawRect(
+        ao,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x50000000), Color(0x00000000)],
+          ).createShader(ao));
+  }
+
+  // ---------------------------------------------------------------- 2.5D helpers
+
+  static final Paint _softShadow = Paint()
+    ..color = const Color(0x40000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+  static final Paint _contactShadow = Paint()
+    ..color = const Color(0x55000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+
+  /// A soft ground shadow: a wide blurry one plus a tight dark one.
+  /// [lift] is how high the thing is above the floor (shadow fades).
+  void _groundShadow(Canvas c, double x, double width, {double lift = 0}) {
+    final f = (1 - lift / 280).clamp(0.25, 1.0);
+    final y = w.floorY + 3;
+    c.drawOval(
+        Rect.fromCenter(center: Offset(x + 8 * f, y), width: width * 1.15 * f, height: 16 * f),
+        _softShadow..color = Color.fromARGB((70 * f).round(), 0, 0, 0));
+    if (lift < 30) {
+      c.drawOval(Rect.fromCenter(center: Offset(x, y), width: width * 0.7, height: 6),
+          _contactShadow);
+    }
+  }
+
+  /// Draws [paint] then lights it like a 3D object: a highlight from the
+  /// upper left and shade on the lower right, only where something was drawn.
+  void _lit(Canvas c, Rect layer, Rect body, void Function() paint,
+      {double strength = 1}) {
+    c.saveLayer(layer, Paint());
+    paint();
+    final a = (strength * 255).round().clamp(0, 255);
+    c.drawRect(
+        layer,
+        Paint()
+          ..blendMode = BlendMode.srcATop
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.fromARGB((0x50 * a) ~/ 255, 255, 250, 235),
+              const Color(0x00FFFFFF),
+              const Color(0x00000000),
+              Color.fromARGB((0x60 * a) ~/ 255, 40, 20, 60),
+            ],
+            stops: const [0, 0.38, 0.55, 1],
+          ).createShader(body));
+    // rim light on the right edge (light bouncing off the wall)
+    c.drawRect(
+        layer,
+        Paint()
+          ..blendMode = BlendMode.srcATop
+          ..shader = LinearGradient(
+            begin: Alignment.centerRight,
+            end: Alignment.centerLeft,
+            colors: [Color.fromARGB((0x30 * a) ~/ 255, 255, 230, 200), const Color(0x00FFFFFF)],
+            stops: const [0, 0.18],
+          ).createShader(body));
+    c.restore();
   }
 
   void _orosi(Canvas c, Rect r) {
@@ -192,6 +319,12 @@ class GamePainter extends CustomPainter {
 
   void _coins(Canvas c) {
     for (final coin in w.coins) {
+      final lift = w.floorY - coin.y;
+      if (lift < 220) {
+        final f = 1 - lift / 220;
+        c.drawOval(Rect.fromCenter(center: Offset(coin.x + 4, w.floorY + 3), width: 18 * f + 4, height: 5 * f + 1),
+            Paint()..color = Color.fromARGB((60 * f).round(), 0, 0, 0));
+      }
       final sq = 0.35 + 0.65 * cos(w.time * 5 + coin.x / 60).abs();
       paintCoin(c, Offset(coin.x, coin.y), 12, sq);
     }
@@ -254,44 +387,53 @@ class GamePainter extends CustomPainter {
         c.restore();
         continue;
       }
-      // shadow
-      final shadowW = s.width * (1 - h.hop / 120);
-      c.drawOval(
-          Rect.fromCenter(center: Offset(h.x, h.y + 2), width: shadowW, height: 10),
-          Paint()..color = const Color(0x44000000));
-      _obstacle(c, h.kind!, Offset(h.x, h.y - h.hop), h.rot);
+      _groundShadow(c, h.x, s.width, lift: h.hop * 2);
+      final base = Offset(h.x, h.y - h.hop);
+      final body = Rect.fromLTWH(base.dx - s.width / 2, base.dy - s.height, s.width, s.height);
+      _lit(c, body.inflate(36), body, () => _obstacle(c, h.kind!, base, h.rot));
     }
   }
 
   void _parent(Canvas c) {
     final feet = Offset(w.parentX, w.floorY + 4);
     const scale = 0.95;
+    _groundShadow(c, feet.dx, 90);
+    // Dad's arm can reach far toward the kid while whipping
+    final reachR = w.whipT > 0 ? max(feet.dx + 60, w.whipStartX + 40) : feet.dx + 60;
+    final body = Rect.fromLTRB(feet.dx - 60, feet.dy - 215, reachR, feet.dy);
+    final layer = Rect.fromLTRB(feet.dx - 170, feet.dy - 340, max(feet.dx + 190, reachR + 120), feet.dy + 16);
     if (w.shownParent == Parent.mom) {
-      drawMom(c, feet, scale,
-          time: w.time,
-          windup: w.windup,
-          release: w.release,
-          anger: w.anger,
-          shouting: w.shoutTimer > 0,
-          calm: w.calm > 0,
-          twirl: w.twirl);
+      _lit(c, layer, body, () => _drawMom(c, feet, scale), strength: 0.9);
       return;
     }
     Offset? reach;
     if (w.whipT > 0) {
       reach = Offset((w.whipStartX - feet.dx) / scale, (w.whipY - feet.dy) / scale);
     }
-    drawDad(c, feet, scale,
+    _lit(c, layer, body, () => drawDad(c, feet, scale,
         time: w.time,
         windup: w.windup,
         twirl: w.twirl,
         anger: w.anger,
         shouting: w.shoutTimer > 0,
         calm: w.calm > 0,
-        reach: reach);
+        reach: reach), strength: 0.9);
     if (w.whipT > 0) {
+      _groundShadow(c, (w.whipStartX + w.whipTipX) / 2, (w.whipTipX - w.whipStartX).abs() * 0.8,
+          lift: w.floorY - w.whipY);
       drawBeltWhip(c, Offset(w.whipStartX, w.whipY), Offset(w.whipTipX, w.whipY), w.time);
     }
+  }
+
+  void _drawMom(Canvas c, Offset feet, double scale) {
+    drawMom(c, feet, scale,
+        time: w.time,
+        windup: w.windup,
+        release: w.release,
+        anger: w.anger,
+        shouting: w.shoutTimer > 0,
+        calm: w.calm > 0,
+        twirl: w.twirl);
   }
 
   void _warning(Canvas c) {
@@ -338,11 +480,8 @@ class GamePainter extends CustomPainter {
 
   void _kid(Canvas c) {
     final feet = Offset(w.kidX, w.floorY - w.kidY);
-    // ground shadow shrinks while airborne
-    final sh = (1 - w.kidY / 260).clamp(0.3, 1.0);
-    c.drawOval(
-        Rect.fromCenter(center: Offset(w.kidX, w.floorY + 3), width: 46 * sh, height: 10 * sh),
-        Paint()..color = const Color(0x44000000));
+    // ground shadow shrinks and fades while airborne
+    _groundShadow(c, w.kidX, 52, lift: w.kidY);
 
     if (w.magnetT > 0) {
       final pulse = (w.time * 2) % 1.0;
@@ -384,7 +523,9 @@ class GamePainter extends CustomPainter {
       }
     }
     if (!flicker) {
-      drawCharacter(c, ch, feet + (w.skating && w.onGround ? const Offset(0, -10) : Offset.zero),
+      final kf = feet + (w.skating && w.onGround ? const Offset(0, -10) : Offset.zero);
+      _lit(c, Rect.fromLTWH(kf.dx - 110, kf.dy - 220, 220, 240),
+          Rect.fromLTWH(kf.dx - 40, kf.dy - 140, 80, 140), () => drawCharacter(c, ch, kf,
           GameWorld.kidScale,
           phase: w.skating && w.onGround ? 0.25 : w.runPhase,
           airborne: !w.onGround || w.ballooning,
@@ -395,7 +536,7 @@ class GamePainter extends CustomPainter {
           time: w.time,
           blink: w.blinking,
           gliding: w.gliding,
-          spin: w.flip > 0 ? -(1 - w.flip) * 2 * pi : 0.0);
+          spin: w.flip > 0 ? -(1 - w.flip) * 2 * pi : 0.0));
     }
     if (w.ability.kickCooldown > 0 && w.kickReady >= 1 && w.dying <= 0) {
       // football ready: a little glowing ball at the kid's feet
@@ -435,6 +576,12 @@ class GamePainter extends CustomPainter {
   void _slippers(Canvas c) {
     for (final h in w.hazards) {
       if (!h.isSlipper) continue;
+      final lift = w.floorY - h.y;
+      if (lift < 260) {
+        final f = 1 - lift / 260;
+        c.drawOval(Rect.fromCenter(center: Offset(h.x + 6, w.floorY + 3), width: 44 * f + 6, height: 8 * f + 2),
+            Paint()..color = Color.fromARGB((70 * f).round(), 0, 0, 0));
+      }
       if (h.isRemote) {
         drawRemote(c, Offset(h.x, h.y), 46, h.rot);
       } else {

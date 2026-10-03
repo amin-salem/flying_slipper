@@ -338,7 +338,12 @@ class _CoinPainter extends CustomPainter {
 /// Shared coin drawing (also used inside the game).
 void paintCoin(Canvas c, Offset center, double r, double squash) {
   final rect = Rect.fromCenter(center: center, width: r * 2 * squash, height: r * 2);
-  c.drawOval(rect.shift(Offset(0, r * 0.12)), Paint()..color = C.goldEdge);
+  // coin thickness: the edge shows more as the coin turns sideways
+  final edge = r * 0.28 * (1 - squash) + r * 0.06;
+  c.drawOval(rect.shift(Offset(edge, r * 0.1)), Paint()..color = const Color(0xFFA8650A));
+  for (double e = edge * 0.7; e > 0; e -= max(0.8, edge / 4)) {
+    c.drawOval(rect.shift(Offset(e, r * 0.08)), Paint()..color = C.goldEdge);
+  }
   c.drawOval(
       rect,
       Paint()
