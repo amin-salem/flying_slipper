@@ -55,6 +55,28 @@ Write down anything odd (with what you were doing) and send it to me.
 
 ---
 
+## 2a. Package name (choose once, it can never change on Bazaar)
+
+Flutter starts with `com.example.flying_slipper`. Bazaar doesn't accept
+`com.example`, and the name can never change after the first upload. Pick
+your own name, for example `ir.aminsalem.flyingslipper`. Use only lowercase
+English letters, digits, dots and `_`.
+
+In `android/app/build.gradle.kts`, inside `defaultConfig { ... }`:
+```kotlin
+applicationId = "ir.aminsalem.flyingslipper"
+```
+(Leave `namespace = ...` as it is.) Use the same name for
+`BAZAAR_PACKAGE_NAME` on the server (Liara environment variables).
+
+## 2b. Internet permission
+
+Release builds only get internet access if the main manifest asks for it.
+In `android/app/src/main/AndroidManifest.xml`, add above `<application`:
+```xml
+<uses-permission android:name="android.permission.INTERNET"/>
+```
+
 ## 2. Release signing (very important: do it once, keep the key forever)
 
 Bazaar identifies your game by its **package name** and **signing key**. If
@@ -107,10 +129,15 @@ signingConfig = signingConfigs.getByName("release")
 
 ### 2.4 Build the release APK
 ```
-flutter build apk --release
+./tools/build_release.sh
 ```
-The file is `build/app/outputs/flutter-apk/app-release.apk`. Install it on
-your phone once more and play a run before uploading.
+The script does three things:
+* passes the build number (for forced updates) and the server address to the app
+* shrinks and obfuscates the code
+* copies the APK to `release/flying_slipper-<version>-<build>.apk`
+
+Install it on your phone (`adb install -r release/...apk`) and play a run before uploading.
+Keep the `build/symbols` folder of each release: it is needed to read crash reports.
 
 Every update: raise `version:` in `pubspec.yaml` (e.g. `1.5.0+7` → `1.5.1+8`;
 the number after `+` must always go up), then build again.
