@@ -1,0 +1,834 @@
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+
+import '../theme.dart';
+
+enum Rarity { common, rare, epic, legendary }
+
+extension RarityInfo on Rarity {
+  String get label => const ['عادی', 'کمیاب', 'حماسی', 'افسانه‌ای'][index];
+  Color get color =>
+      const [Color(0xFF8C7D99), C.blueDark, C.purpleDark, C.goldEdge][index];
+  List<Color> get bg => const [
+        [Color(0xFFF4ECF7), Color(0xFFE6DAEE)],
+        [Color(0xFFDDEEFF), Color(0xFFB9D9FF)],
+        [Color(0xFFEDE2FF), Color(0xFFD2BCFF)],
+        [Color(0xFFFFF1C4), Color(0xFFFFD877)],
+      ][index];
+}
+
+enum Hair { spiky, pigtails, neat, headband, curly, nightcap, hero }
+
+enum Extra { none, backpack, glasses, goldfish, cape }
+
+enum Mood { scared, happy, hurt, cool, sleepy }
+
+class Character {
+  const Character({
+    required this.id,
+    required this.name,
+    required this.desc,
+    required this.rarity,
+    required this.price,
+    required this.shirt,
+    required this.pants,
+    required this.shoes,
+    required this.hair,
+    required this.hairColor,
+    this.extras = const [],
+    this.vest,
+    this.stripes,
+    this.number,
+    this.runMood = Mood.scared,
+  });
+
+  final String id;
+  final String name;
+  final String desc;
+  final Rarity rarity;
+  final int price; // coins
+  final Color shirt;
+  final Color pants;
+  final Color shoes;
+  final Hair hair;
+  final Color hairColor;
+  final List<Extra> extras;
+  final Color? vest;
+  final Color? stripes;
+  final String? number;
+  final Mood runMood;
+}
+
+const List<Character> kCharacters = [
+  Character(
+    id: 'ali',
+    name: 'علی شیطون',
+    desc: 'همیشه یه خرابکاری کرده!',
+    rarity: Rarity.common,
+    price: 0,
+    shirt: Color(0xFFFF8A3D),
+    pants: Color(0xFF2E3A73),
+    shoes: Color(0xFFFF4D4D),
+    hair: Hair.spiky,
+    hairColor: Color(0xFF3A2416),
+  ),
+  Character(
+    id: 'sara',
+    name: 'سارا',
+    desc: 'سریع‌ترین دختر کوچه',
+    rarity: Rarity.common,
+    price: 800,
+    shirt: Color(0xFFFF6FA8),
+    pants: Color(0xFF6C3FB5),
+    shoes: Color(0xFFFFFFFF),
+    hair: Hair.pigtails,
+    hairColor: Color(0xFF2A1A12),
+  ),
+  Character(
+    id: 'omid',
+    name: 'امید درس‌خون',
+    desc: 'فقط عینکش نیفته!',
+    rarity: Rarity.rare,
+    price: 1500,
+    shirt: Color(0xFF7D93B5),
+    pants: Color(0xFF2C3550),
+    shoes: Color(0xFF3A2A20),
+    hair: Hair.neat,
+    hairColor: Color(0xFF241812),
+    extras: [Extra.glasses, Extra.backpack],
+  ),
+  Character(
+    id: 'football',
+    name: 'گل‌زن محله',
+    desc: 'توپ رو شکوند به شیشه!',
+    rarity: Rarity.rare,
+    price: 3000,
+    shirt: Color(0xFFE53935),
+    pants: Color(0xFFFFFFFF),
+    shoes: Color(0xFF26C6BE),
+    hair: Hair.headband,
+    hairColor: Color(0xFF3A2416),
+    number: '۱۰',
+    runMood: Mood.happy,
+  ),
+  Character(
+    id: 'pajama',
+    name: 'خواب‌آلو',
+    desc: 'هنوز از خواب بیدار نشده',
+    rarity: Rarity.rare,
+    price: 4000,
+    shirt: Color(0xFF8EC5FF),
+    pants: Color(0xFF8EC5FF),
+    shoes: Color(0xFF9B6B4A),
+    hair: Hair.nightcap,
+    hairColor: Color(0xFF5A3A22),
+    stripes: Color(0xFF3F7FD6),
+    runMood: Mood.sleepy,
+  ),
+  Character(
+    id: 'nowruz',
+    name: 'بچه عید',
+    desc: 'لباس نو، ماهی قرمز، فرار!',
+    rarity: Rarity.epic,
+    price: 6000,
+    shirt: Color(0xFFFFFFFF),
+    pants: Color(0xFF3A3A4A),
+    shoes: Color(0xFF1E1E28),
+    hair: Hair.curly,
+    hairColor: Color(0xFF2A1A12),
+    vest: Color(0xFF1FA463),
+    extras: [Extra.goldfish],
+    runMood: Mood.happy,
+  ),
+  Character(
+    id: 'hero',
+    name: 'ابرپسر',
+    desc: 'حتی ابرقهرمان‌ها هم از دمپایی می‌ترسن',
+    rarity: Rarity.legendary,
+    price: 10000,
+    shirt: Color(0xFF2F6BFF),
+    pants: Color(0xFF2F6BFF),
+    shoes: Color(0xFFE53935),
+    hair: Hair.hero,
+    hairColor: Color(0xFF1C1410),
+    extras: [Extra.cape],
+    runMood: Mood.cool,
+  ),
+];
+
+Character characterById(String id) =>
+    kCharacters.firstWhere((c) => c.id == id, orElse: () => kCharacters.first);
+
+// ---------------------------------------------------------------------------
+// Drawing helpers
+// ---------------------------------------------------------------------------
+
+const double _ow = 2.6; // outline width (in character units)
+
+Paint _f(Color c) => Paint()
+  ..color = c
+  ..isAntiAlias = true;
+
+Paint _s(Color c, double w) => Paint()
+  ..color = c
+  ..style = PaintingStyle.stroke
+  ..strokeWidth = w
+  ..strokeCap = StrokeCap.round
+  ..strokeJoin = StrokeJoin.round;
+
+final Paint _outline = _s(C.ink, _ow);
+
+void _fillOutline(Canvas c, Path p, Color color) {
+  c.drawPath(p, _f(color));
+  c.drawPath(p, _outline);
+}
+
+/// A limb drawn as an outlined thick line through [pts].
+void _limb(Canvas c, List<Offset> pts, Color color, double w) {
+  final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+  for (final p in pts.skip(1)) {
+    path.lineTo(p.dx, p.dy);
+  }
+  c.drawPath(path, _s(C.ink, w + _ow * 2));
+  c.drawPath(path, _s(color, w));
+}
+
+Offset _polar(double len, double angle) =>
+    Offset(sin(angle) * len, cos(angle) * len);
+
+/// Draws a character. [feet] = point on the floor under the feet.
+/// The character is ~105 units tall at scale 1 and faces right.
+void drawCharacter(
+  Canvas canvas,
+  Character ch,
+  Offset feet,
+  double scale, {
+  double phase = 0,
+  bool airborne = false,
+  double squashX = 1,
+  double squashY = 1,
+  double tilt = 0,
+  Mood? mood,
+  double time = 0,
+  bool blink = false,
+}) {
+  final m = mood ?? ch.runMood;
+  canvas.save();
+  canvas.translate(feet.dx, feet.dy);
+  canvas.scale(scale * squashX, scale * squashY);
+  canvas.rotate(tilt);
+
+  // ---- Running cycle ----
+  double legA, legB, kneeA, kneeB, armA, armB;
+  if (airborne) {
+    legA = 0.9; // front leg tucked
+    kneeA = -1.4;
+    legB = -0.6; // back leg stretched
+    kneeB = -0.3;
+    armA = -2.4; // arms up (panic!)
+    armB = 2.2;
+  } else {
+    final s = sin(phase);
+    legA = s * 0.85;
+    legB = -s * 0.85;
+    kneeA = -0.9 * (0.5 - 0.5 * cos(phase));
+    kneeB = -0.9 * (0.5 + 0.5 * cos(phase));
+    armA = -s * 1.0;
+    armB = s * 1.0;
+  }
+
+  const hipA = Offset(4, -32);
+  const hipB = Offset(-3, -32);
+  const shoulderA = Offset(8, -51);
+  const shoulderB = Offset(-6, -51);
+
+  void leg(Offset hip, double a, double knee) {
+    final k = hip + _polar(14, a);
+    final f = k + _polar(14, a + knee);
+    _limb(canvas, [hip, k, f], ch.pants, 9);
+    // shoe
+    canvas.save();
+    canvas.translate(f.dx, f.dy);
+    canvas.rotate(-(a + knee) * 0.6);
+    final shoe = RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-5, -3, 15, 8), const Radius.circular(4));
+    canvas.drawRRect(shoe, _f(ch.shoes));
+    canvas.drawRRect(shoe, _outline);
+    canvas.drawLine(const Offset(-3, 3.5), const Offset(9, 3.5),
+        _s(const Color(0x55FFFFFF), 2));
+    canvas.restore();
+  }
+
+  void arm(Offset sh, double a, {bool front = false}) {
+    final e = sh + _polar(11, a);
+    final h = e + _polar(10, a + (airborne ? 0.3 : 1.2));
+    _limb(canvas, [sh, e], ch.shirt, 8);
+    _limb(canvas, [e, h], C.skin, 7);
+    canvas.drawCircle(h, 4.6, _f(C.skin));
+    canvas.drawCircle(h, 4.6, _outline);
+    if (front && ch.extras.contains(Extra.goldfish)) _goldfish(canvas, h, time);
+  }
+
+  // ---- Cape (behind everything) ----
+  if (ch.extras.contains(Extra.cape)) {
+    final wave = sin(time * 9) * 4;
+    final cape = Path()
+      ..moveTo(-8, -54)
+      ..quadraticBezierTo(-30, -40 + wave, -44, -18 - wave)
+      ..quadraticBezierTo(-30, -14 + wave, -20, -12)
+      ..quadraticBezierTo(-12, -30, 6, -54)
+      ..close();
+    _fillOutline(canvas, cape, const Color(0xFFE53935));
+  }
+
+  // ---- Back limbs ----
+  arm(shoulderB, armB);
+  leg(hipB, legB, kneeB);
+
+  // ---- Backpack ----
+  if (ch.extras.contains(Extra.backpack)) {
+    final bp = RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-24, -55, 14, 24), const Radius.circular(6));
+    canvas.drawRRect(bp, _f(const Color(0xFFFFB531)));
+    canvas.drawRRect(bp, _outline);
+    canvas.drawLine(const Offset(-22, -44), const Offset(-12, -44),
+        _s(const Color(0xFFC07A0E), 2.5));
+  }
+
+  // ---- Body ----
+  final torso = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(-12, -57, 25, 30), const Radius.circular(10));
+  canvas.drawRRect(torso, _f(ch.shirt));
+  if (ch.stripes != null) {
+    canvas.save();
+    canvas.clipRRect(torso);
+    for (double y = -54; y < -26; y += 6) {
+      canvas.drawLine(Offset(-14, y), Offset(15, y), _s(ch.stripes!, 2.5));
+    }
+    canvas.restore();
+  }
+  if (ch.vest != null) {
+    canvas.save();
+    canvas.clipRRect(torso);
+    final v1 = Path()
+      ..moveTo(-12, -57)
+      ..lineTo(2, -57)
+      ..lineTo(-2, -27)
+      ..lineTo(-12, -27)
+      ..close();
+    final v2 = Path()
+      ..moveTo(13, -57)
+      ..lineTo(8, -57)
+      ..lineTo(11, -27)
+      ..lineTo(13, -27)
+      ..close();
+    canvas.drawPath(v1, _f(ch.vest!));
+    canvas.drawPath(v2, _f(ch.vest!));
+    canvas.drawLine(const Offset(2, -57), const Offset(-2, -27), _s(C.gold, 2));
+    canvas.drawLine(const Offset(8, -57), const Offset(11, -27), _s(C.gold, 2));
+    canvas.restore();
+  }
+  // belt line / pants top
+  canvas.save();
+  canvas.clipRRect(torso);
+  canvas.drawRect(const Rect.fromLTWH(-13, -32, 27, 6), _f(ch.pants));
+  canvas.restore();
+  canvas.drawRRect(torso, _outline);
+  if (ch.number != null) {
+    final tp = TextPainter(
+      text: TextSpan(
+          text: ch.number,
+          style: const TextStyle(
+              fontFamily: 'Vazirmatn',
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: C.white)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    tp.paint(canvas, Offset(0.5 - tp.width / 2, -52));
+  }
+  if (ch.extras.contains(Extra.backpack)) {
+    canvas.drawLine(const Offset(-10, -55), const Offset(-4, -32),
+        _s(const Color(0xFFC07A0E), 3));
+  }
+
+  // ---- Head ----
+  const hc = Offset(3, -75);
+  const r = 22.0;
+
+  // hair behind the head
+  if (ch.hair == Hair.pigtails) {
+    for (final o in const [Offset(-21, -70), Offset(-15, -60)]) {
+      final tail = Path()..addOval(Rect.fromCircle(center: o, radius: 8.5));
+      _fillOutline(canvas, tail, ch.hairColor);
+    }
+    final bow = Path()
+      ..moveTo(-16, -78)
+      ..lineTo(-24, -84)
+      ..lineTo(-24, -72)
+      ..close()
+      ..moveTo(-16, -78)
+      ..lineTo(-8, -84)
+      ..lineTo(-8, -72)
+      ..close();
+    _fillOutline(canvas, bow, const Color(0xFFFF4D8D));
+  }
+
+  // neck
+  canvas.drawRect(const Rect.fromLTWH(-1, -58, 7, 6), _f(C.skinShade));
+  // head
+  final head = Path()..addOval(Rect.fromCircle(center: hc, radius: r));
+  _fillOutline(canvas, head, C.skin);
+  // ear
+  final ear = Path()..addOval(Rect.fromCircle(center: hc + const Offset(-7, 3), radius: 5));
+  _fillOutline(canvas, ear, C.skin);
+
+  // hero mask (under the eyes)
+  if (ch.hair == Hair.hero) {
+    final mask = RRect.fromRectAndRadius(
+        Rect.fromLTWH(hc.dx - 1, hc.dy - 7, 25, 11), const Radius.circular(5));
+    canvas.drawRRect(mask, _f(const Color(0xFFE53935)));
+    canvas.drawRRect(mask, _outline);
+    canvas.drawLine(Offset(hc.dx - 1, hc.dy - 2), Offset(hc.dx - 18, hc.dy + 2),
+        _s(const Color(0xFFE53935), 3));
+  }
+
+  _face(canvas, hc, m, blink: blink);
+
+  // hair on top
+  _hair(canvas, ch, hc, r, time);
+
+  if (ch.extras.contains(Extra.glasses)) {
+    final g = _s(C.ink, 2.2);
+    canvas.drawCircle(hc + const Offset(7, 0), 6, g);
+    canvas.drawCircle(hc + const Offset(18, 0), 5.5, g);
+    canvas.drawLine(hc + const Offset(12.5, -1), hc + const Offset(13, -1), g);
+    canvas.drawLine(hc + const Offset(1, -1), hc + const Offset(-8, -3), g);
+    canvas.drawCircle(hc + const Offset(5, -2), 1.6, _f(const Color(0xAAFFFFFF)));
+  }
+
+  // ---- Front limbs ----
+  leg(hipA, legA, kneeA);
+  arm(shoulderA, armA, front: true);
+
+  // sweat drop when scared
+  if (m == Mood.scared) {
+    final d = Path()
+      ..moveTo(-16, -100)
+      ..quadraticBezierTo(-11, -91, -16, -88)
+      ..quadraticBezierTo(-21, -91, -16, -100)
+      ..close();
+    canvas.drawPath(d, _f(const Color(0xFFA8E6FF)));
+    canvas.drawPath(d, _s(C.ink, 1.6));
+  }
+  if (m == Mood.sleepy) {
+    _zzz(canvas, hc + const Offset(-12, -34), time);
+  }
+
+  canvas.restore();
+}
+
+void _face(Canvas c, Offset hc, Mood m, {bool blink = false}) {
+  final e1 = hc + const Offset(7, 0);
+  final e2 = hc + const Offset(18, 0);
+
+  // blush
+  c.drawOval(Rect.fromCenter(center: hc + const Offset(4, 9), width: 8, height: 5),
+      _f(const Color(0x66FF6F8A)));
+  c.drawOval(Rect.fromCenter(center: hc + const Offset(20, 9), width: 6, height: 5),
+      _f(const Color(0x66FF6F8A)));
+
+  if (m == Mood.hurt) {
+    final x = _s(C.ink, 2.4);
+    for (final e in [e1, e2]) {
+      c.drawLine(e + const Offset(-3.5, -3.5), e + const Offset(3.5, 3.5), x);
+      c.drawLine(e + const Offset(-3.5, 3.5), e + const Offset(3.5, -3.5), x);
+    }
+    final w = Path()
+      ..moveTo(hc.dx + 6, hc.dy + 12)
+      ..quadraticBezierTo(hc.dx + 9, hc.dy + 9, hc.dx + 12, hc.dy + 12)
+      ..quadraticBezierTo(hc.dx + 15, hc.dy + 15, hc.dx + 18, hc.dy + 12);
+    c.drawPath(w, _s(C.ink, 2.2));
+    return;
+  }
+
+  if (m == Mood.happy) {
+    final a = _s(C.ink, 2.6);
+    for (final e in [e1, e2]) {
+      c.drawArc(Rect.fromCenter(center: e + const Offset(0, 1.5), width: 8, height: 7),
+          pi, pi, false, a);
+    }
+    final mouth = Path()
+      ..moveTo(hc.dx + 6, hc.dy + 9)
+      ..quadraticBezierTo(hc.dx + 13, hc.dy + 19, hc.dx + 20, hc.dy + 9)
+      ..close();
+    c.drawPath(mouth, _f(const Color(0xFF8A2A2A)));
+    c.drawPath(mouth, _s(C.ink, 2));
+    return;
+  }
+
+  // eyes (scared / cool / sleepy)
+  final lid = m == Mood.cool ? 0.45 : (m == Mood.sleepy ? 0.6 : 0.0);
+  for (final e in [e1, e2]) {
+    final size = e == e1 ? const Size(9, 11) : const Size(8, 10);
+    final rect = Rect.fromCenter(center: e, width: size.width, height: size.height);
+    if (blink) {
+      c.drawLine(e + const Offset(-4, 0), e + const Offset(4, 0), _s(C.ink, 2.4));
+      continue;
+    }
+    c.drawOval(rect, _f(C.white));
+    c.drawOval(rect, _s(C.ink, 2));
+    c.drawCircle(e + const Offset(1.4, 0.6), 2.8, _f(C.ink));
+    c.drawCircle(e + const Offset(0.4, -1.3), 1.1, _f(C.white));
+    if (lid > 0) {
+      c.save();
+      c.clipRect(Rect.fromLTWH(rect.left - 1, rect.top - 1, rect.width + 2,
+          rect.height * lid + 1));
+      c.drawOval(rect, _f(C.skin));
+      c.restore();
+      c.drawLine(Offset(rect.left, rect.top + rect.height * lid),
+          Offset(rect.right, rect.top + rect.height * lid), _s(C.ink, 2.2));
+    }
+  }
+
+  if (m == Mood.scared) {
+    // worried brows
+    c.drawLine(e1 + const Offset(-4, -8), e1 + const Offset(3, -10), _s(C.ink, 2.4));
+    c.drawLine(e2 + const Offset(4, -8), e2 + const Offset(-3, -10), _s(C.ink, 2.4));
+    final mouth = Rect.fromCenter(
+        center: hc + const Offset(13, 12), width: 8, height: 10);
+    c.drawOval(mouth, _f(const Color(0xFF8A2A2A)));
+    c.drawOval(
+        Rect.fromCenter(center: hc + const Offset(13, 15), width: 5, height: 4),
+        _f(const Color(0xFFFF8A8A)));
+    c.drawOval(mouth, _s(C.ink, 2));
+  } else if (m == Mood.cool) {
+    c.drawLine(e1 + const Offset(-4, -8), e1 + const Offset(4, -7), _s(C.ink, 2.6));
+    c.drawLine(e2 + const Offset(-3, -7), e2 + const Offset(4, -8), _s(C.ink, 2.6));
+    final smirk = Path()
+      ..moveTo(hc.dx + 8, hc.dy + 12)
+      ..quadraticBezierTo(hc.dx + 15, hc.dy + 15, hc.dx + 20, hc.dy + 9);
+    c.drawPath(smirk, _s(C.ink, 2.4));
+  } else {
+    // sleepy
+    c.drawOval(
+        Rect.fromCenter(center: hc + const Offset(13, 12), width: 6, height: 4),
+        _f(const Color(0xFF8A2A2A)));
+  }
+}
+
+void _hair(Canvas c, Character ch, Offset hc, double r, double time) {
+  final color = ch.hairColor;
+  Path cap({double fringeY = -6}) {
+    final p = Path()
+      ..moveTo(hc.dx + cos(pi * 0.92) * (r + 2), hc.dy + sin(pi * 0.92) * (r + 2))
+      ..arcTo(Rect.fromCircle(center: hc, radius: r + 2), pi * 0.92, pi * 1.0,
+          false)
+      ..quadraticBezierTo(hc.dx + 12, hc.dy + fringeY - 4, hc.dx + 2, hc.dy + fringeY)
+      ..quadraticBezierTo(hc.dx - 8, hc.dy + fringeY + 2, hc.dx - 12, hc.dy + 4)
+      ..close();
+    return p;
+  }
+
+  switch (ch.hair) {
+    case Hair.spiky:
+      final p = Path();
+      const n = 7;
+      const a0 = pi * 0.95;
+      const a1 = pi * 1.98;
+      for (int k = 0; k <= n * 2; k++) {
+        final a = a0 + (a1 - a0) * k / (n * 2);
+        final rr = k.isOdd ? r + 9 : r + 1;
+        final pt = hc + Offset(cos(a) * rr, sin(a) * rr);
+        if (k == 0) {
+          p.moveTo(pt.dx, pt.dy);
+        } else {
+          p.lineTo(pt.dx, pt.dy);
+        }
+      }
+      p
+        ..quadraticBezierTo(hc.dx + 10, hc.dy - 12, hc.dx, hc.dy - 8)
+        ..quadraticBezierTo(hc.dx - 10, hc.dy - 4, hc.dx - 14, hc.dy + 4)
+        ..close();
+      _fillOutline(c, p, color);
+      break;
+    case Hair.pigtails:
+    case Hair.neat:
+    case Hair.hero:
+      _fillOutline(c, cap(), color);
+      // shine
+      c.drawArc(Rect.fromCircle(center: hc, radius: r - 4), pi * 1.25, pi * 0.3,
+          false, _s(const Color(0x40FFFFFF), 3));
+      break;
+    case Hair.headband:
+      _fillOutline(c, cap(fringeY: -8), color);
+      final band = _s(C.white, 6);
+      c.drawArc(Rect.fromCircle(center: hc, radius: r - 2), pi * 1.08, pi * 0.86,
+          false, _s(C.ink, 6 + _ow * 2));
+      c.drawArc(Rect.fromCircle(center: hc, radius: r - 2), pi * 1.08, pi * 0.86,
+          false, band);
+      final flutter = sin(time * 14) * 3;
+      c.drawLine(hc + Offset(-r + 1, -4), hc + Offset(-r - 12, 2 + flutter),
+          _s(C.white, 4));
+      c.drawLine(hc + Offset(-r + 1, -2), hc + Offset(-r - 9, 8 - flutter),
+          _s(C.white, 4));
+      break;
+    case Hair.curly:
+      for (int k = 0; k < 8; k++) {
+        final a = pi * 0.95 + k * pi * 1.0 / 7;
+        final o = hc + Offset(cos(a) * (r - 1), sin(a) * (r - 1));
+        final curl = Path()..addOval(Rect.fromCircle(center: o, radius: 7.5));
+        _fillOutline(c, curl, color);
+      }
+      final top = Path()..addOval(Rect.fromCircle(center: hc + const Offset(-2, -10), radius: 15));
+      c.drawPath(top, _f(color));
+      break;
+    case Hair.nightcap:
+      _fillOutline(c, cap(), color);
+      final droop = sin(time * 6) * 3;
+      final hat = Path()
+        ..moveTo(hc.dx - r - 2, hc.dy - 4)
+        ..quadraticBezierTo(hc.dx - 4, hc.dy - r - 14, hc.dx + r - 2, hc.dy - 8)
+        ..quadraticBezierTo(hc.dx - 6, hc.dy - r - 6, hc.dx - r - 16, hc.dy + 6 + droop)
+        ..close();
+      _fillOutline(c, hat, const Color(0xFF3F7FD6));
+      final pom = Path()
+        ..addOval(Rect.fromCircle(
+            center: Offset(hc.dx - r - 16, hc.dy + 8 + droop), radius: 5.5));
+      _fillOutline(c, pom, C.white);
+      break;
+  }
+}
+
+void _goldfish(Canvas c, Offset hand, double time) {
+  final swing = sin(time * 8) * 0.25;
+  c.save();
+  c.translate(hand.dx, hand.dy);
+  c.rotate(swing);
+  c.drawLine(Offset.zero, const Offset(0, 6), _s(C.ink, 1.6));
+  final bag = Path()
+    ..moveTo(-3, 6)
+    ..quadraticBezierTo(-12, 16, -6, 24)
+    ..quadraticBezierTo(0, 28, 6, 24)
+    ..quadraticBezierTo(12, 16, 3, 6)
+    ..close();
+  c.drawPath(bag, _f(const Color(0x88BFEFFF)));
+  c.drawPath(bag, _s(C.ink, 1.6));
+  final fish = Path()
+    ..addOval(Rect.fromCenter(center: const Offset(0, 18), width: 8, height: 5));
+  c.drawPath(fish, _f(const Color(0xFFFF6A1F)));
+  final tail = Path()
+    ..moveTo(-4, 18)
+    ..lineTo(-8, 15)
+    ..lineTo(-8, 21)
+    ..close();
+  c.drawPath(tail, _f(const Color(0xFFFF6A1F)));
+  c.restore();
+}
+
+void _zzz(Canvas c, Offset at, double time) {
+  for (int k = 0; k < 2; k++) {
+    final tt = (time * 0.8 + k * 0.5) % 1.0;
+    final tp = TextPainter(
+      text: TextSpan(
+          text: 'z',
+          style: TextStyle(
+              fontSize: 9 + tt * 7,
+              fontWeight: FontWeight.w900,
+              color: C.inkSoft.withAlpha((255 * (1 - tt)).round()))),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(c, at + Offset(-tt * 10, -tt * 16));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mom
+// ---------------------------------------------------------------------------
+
+/// Mom, chasing from the left. [feet] is under her feet. ~160 units tall.
+/// [windup] 0..1 raises the slipper; [release] 1..0 swings the arm forward.
+void drawMom(
+  Canvas c,
+  Offset feet,
+  double scale, {
+  double time = 0,
+  double windup = 0,
+  double release = 0,
+  double anger = 0.3,
+  bool shouting = false,
+  bool calm = false,
+}) {
+  c.save();
+  final bob = -(sin(time * 11).abs()) * 4;
+  c.translate(feet.dx, feet.dy + bob * scale);
+  c.scale(scale);
+
+  // feet: one slipper on, one bare (the other one is flying!)
+  final step = sin(time * 11) * 6;
+  final f1 = RRect.fromRectAndRadius(
+      Rect.fromLTWH(-14 + step, -6, 18, 7), const Radius.circular(4));
+  c.drawRRect(f1, _f(const Color(0xFF3F70C8)));
+  c.drawRRect(f1, _outline);
+  final f2 = RRect.fromRectAndRadius(
+      Rect.fromLTWH(6 - step, -6, 14, 7), const Radius.circular(4));
+  c.drawRRect(f2, _f(C.skin));
+  c.drawRRect(f2, _outline);
+
+  // back arm on hip
+  _limb(c, const [Offset(-16, -92), Offset(-30, -70), Offset(-18, -58)],
+      const Color(0xFF8E5BD6), 9);
+
+  // long house dress with flowers
+  final dress = Path()
+    ..moveTo(-20, -98)
+    ..quadraticBezierTo(0, -106, 20, -98)
+    ..lineTo(30, -6)
+    ..quadraticBezierTo(0, 0, -30, -6)
+    ..close();
+  _fillOutline(c, dress, const Color(0xFF8E5BD6));
+  c.save();
+  c.clipPath(dress);
+  final flower = _f(const Color(0xFFFFC2E2));
+  for (int i = 0; i < 12; i++) {
+    final x = -26.0 + (i % 4) * 17 + (i ~/ 4).isOdd.toInt() * 8;
+    final y = -88.0 + (i ~/ 4) * 28;
+    for (int k = 0; k < 5; k++) {
+      final a = k * 2 * pi / 5;
+      c.drawCircle(Offset(x + cos(a) * 3, y + sin(a) * 3), 2.2, flower);
+    }
+    c.drawCircle(Offset(x, y), 1.6, _f(C.gold));
+  }
+  c.restore();
+  // apron
+  final apron = Path()
+    ..moveTo(-2, -78)
+    ..lineTo(22, -78)
+    ..lineTo(26, -24)
+    ..quadraticBezierTo(12, -18, 0, -24)
+    ..close();
+  _fillOutline(c, apron, const Color(0xFFFFF7EA));
+
+  // head + headscarf (rosari)
+  const hc = Offset(4, -124);
+  final scarf = Path()
+    ..addOval(Rect.fromCircle(center: hc + const Offset(-2, -2), radius: 31))
+    ..moveTo(hc.dx - 6, hc.dy + 26)
+    ..lineTo(hc.dx + 4, hc.dy + 44)
+    ..lineTo(hc.dx + 14, hc.dy + 24)
+    ..close();
+  _fillOutline(c, scarf, const Color(0xFFFF5C8A));
+  c.save();
+  c.clipPath(scarf);
+  for (int i = 0; i < 14; i++) {
+    final a = i * 0.9;
+    c.drawCircle(hc + Offset(cos(a) * (12 + (i % 3) * 7), sin(a) * (12 + (i % 3) * 7) - 4),
+        2.4, _f(const Color(0xFFFFE3EC)));
+  }
+  c.restore();
+  final face = Path()
+    ..addOval(Rect.fromCenter(center: hc + const Offset(8, 4), width: 38, height: 42));
+  _fillOutline(c, face, const Color(0xFFF2C29A));
+
+  final e1 = hc + const Offset(3, 1);
+  final e2 = hc + const Offset(16, 1);
+  if (calm) {
+    c.drawArc(Rect.fromCenter(center: e1, width: 7, height: 6), pi, pi, false, _s(C.ink, 2.4));
+    c.drawArc(Rect.fromCenter(center: e2, width: 7, height: 6), pi, pi, false, _s(C.ink, 2.4));
+    c.drawArc(Rect.fromCenter(center: hc + const Offset(10, 14), width: 10, height: 6),
+        0, pi, false, _s(C.ink, 2.4));
+  } else {
+    for (final e in [e1, e2]) {
+      c.drawOval(Rect.fromCenter(center: e, width: 7, height: 8), _f(C.white));
+      c.drawOval(Rect.fromCenter(center: e, width: 7, height: 8), _s(C.ink, 1.8));
+      c.drawCircle(e + const Offset(1.2, 0.8), 2.2, _f(C.ink));
+    }
+    // angry brows
+    c.drawLine(e1 + const Offset(-5, -9), e1 + const Offset(4, -5), _s(C.ink, 3.4));
+    c.drawLine(e2 + const Offset(5, -9), e2 + const Offset(-4, -5), _s(C.ink, 3.4));
+    if (shouting) {
+      final mouth = Rect.fromCenter(center: hc + const Offset(10, 16), width: 12, height: 10);
+      c.drawOval(mouth, _f(const Color(0xFF7A1F1F)));
+      c.drawRect(Rect.fromLTWH(mouth.left + 2, mouth.top + 1, mouth.width - 4, 2.5),
+          _f(C.white));
+      c.drawOval(mouth, _s(C.ink, 2));
+    } else {
+      c.drawArc(Rect.fromCenter(center: hc + const Offset(10, 19), width: 12, height: 7),
+          pi, pi, false, _s(C.ink, 2.6));
+    }
+  }
+  // angry cheeks
+  c.drawCircle(hc + const Offset(-4, 10), 4,
+      _f(Color.fromARGB((60 + anger * 120).round(), 255, 80, 80)));
+  c.drawCircle(hc + const Offset(22, 10), 3.4,
+      _f(Color.fromARGB((60 + anger * 120).round(), 255, 80, 80)));
+
+  // steam when very angry
+  if (anger > 0.55 && !calm) {
+    for (int k = 0; k < 3; k++) {
+      final tt = (time * 1.4 + k / 3) % 1.0;
+      final side = k.isEven ? -1 : 1;
+      final p = hc + Offset(side * (20 + tt * 10), -30 - tt * 26);
+      c.drawCircle(p, 4 + tt * 7,
+          _f(Color.fromARGB((200 * (1 - tt)).round(), 255, 255, 255)));
+    }
+  }
+
+  // throwing arm
+  const shoulder = Offset(14, -94);
+  double a = 0.5; // down-forward
+  if (windup > 0) a = 0.5 + windup * 2.4; // goes up & back
+  if (release > 0) a = 0.5 + release * 2.4 - (1 - release) * 0.6;
+  final elbow = shoulder + Offset(sin(a) * 18, cos(a) * 18);
+  final hand = elbow + Offset(sin(a + 0.3) * 16, cos(a + 0.3) * 16);
+  _limb(c, [shoulder, elbow, hand], const Color(0xFF8E5BD6), 9);
+  c.drawCircle(hand, 5.5, _f(const Color(0xFFF2C29A)));
+  c.drawCircle(hand, 5.5, _outline);
+  c.restore();
+
+  if (windup > 0) {
+    // slipper in her hand (drawn in world space so size matches thrown ones)
+    final handWorld = feet +
+        Offset(hand.dx * scale, (hand.dy + bob) * scale) +
+        const Offset(0, -6);
+    drawSlipper(c, handWorld, 54 * scale, -a + pi / 2);
+  }
+}
+
+/// The famous blue plastic slipper with a red strap (top-down-ish view).
+void drawSlipper(Canvas c, Offset center, double width, double rotation,
+    {Color sole = const Color(0xFF3F70C8), Color strap = const Color(0xFFE53935)}) {
+  c.save();
+  c.translate(center.dx, center.dy);
+  c.rotate(rotation);
+  final s = width / 60;
+  c.scale(s);
+  // shadow-ish thickness
+  final soleRect = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(-30, -9, 60, 20), const Radius.circular(10));
+  c.drawRRect(soleRect.shift(const Offset(0, 3)), _f(const Color(0xFF1F3F86)));
+  c.drawRRect(soleRect, _f(sole));
+  c.drawRRect(soleRect.shift(const Offset(0, 3)), _s(C.ink, 2.2));
+  c.drawRRect(soleRect, _s(C.ink, 2.2));
+  // little grip dots
+  for (int i = 0; i < 5; i++) {
+    c.drawCircle(Offset(-20 + i * 9.0, 2), 1.4, _f(const Color(0x553A2A6E)));
+  }
+  // strap
+  final strapP = Path()
+    ..moveTo(-8, -8)
+    ..quadraticBezierTo(4, -22, 16, -8);
+  c.drawPath(strapP, _s(C.ink, 9 + 4));
+  c.drawPath(strapP, _s(strap, 9));
+  c.drawPath(
+      Path()
+        ..moveTo(-4, -12)
+        ..quadraticBezierTo(4, -19, 10, -13),
+      _s(const Color(0x66FFFFFF), 2));
+  c.restore();
+}
+
+extension on bool {
+  int toInt() => this ? 1 : 0;
+}
