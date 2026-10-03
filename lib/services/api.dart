@@ -7,10 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'save_data.dart';
 
-/// Server address. Set it when you run the app:
+/// Server address: the live server on Liara by default.
+/// Another server for testing:
 ///   flutter run -d R5CRC0PR5WT --dart-define=API_URL=http://192.168.1.5:8000
-/// Empty = no server: the game works fully offline like before.
-const String kApiUrl = String.fromEnvironment('API_URL');
+/// No server at all (fully offline):  --dart-define=API_URL=
+const String kApiUrl = String.fromEnvironment('API_URL', defaultValue: 'https://flyingslippers.liara.run');
 
 /// The app's build number (pubspec version after the "+"); used for forced updates.
 const int kAppBuild = int.fromEnvironment('APP_BUILD', defaultValue: 13);
