@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import '../game/characters.dart';
 import '../game/room_decor.dart';
 import '../game/game_painter.dart' show drawHuntToken;
+import '../services/api.dart';
 import '../services/audio.dart';
 import '../services/missions.dart';
 import '../services/save_data.dart';
 import '../theme.dart';
 import 'game_screen.dart';
 import 'house_screen.dart';
+import 'online_screens.dart';
 import 'rewards.dart';
 import 'shop_screen.dart';
 
@@ -39,6 +41,12 @@ class _HomeScreenState extends State<HomeScreen>
         _calendarShown = true;
         _claimDaily();
       }
+    });
+    // after the server answers: forced update / maintenance, gift count
+    Api.i.started?.then((_) {
+      if (!mounted) return;
+      setState(() {});
+      checkServerNotice(context);
     });
   }
 
@@ -170,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen>
                   _Title(anim: _anim),
                   const SizedBox(height: 6),
                   Center(child: _RankBadge(s: s)),
+                  const OnlineRow(),
                   if (currentSeason() != Season.none)
                     Center(
                       child: Container(
@@ -558,8 +567,21 @@ class _SettingsSheet extends StatelessWidget {
             },
             child: const Text('آموزش رو دوباره ببینم', style: TextStyle(fontSize: 15)),
           ),
+          if (Api.i.enabled) ...[
+            const SizedBox(height: 8),
+            GameButton(
+              tone: Tone.teal,
+              height: 46,
+              onTap: () {
+                final nav = Navigator.of(context);
+                nav.pop();
+                showAccountSheet(nav.context);
+              },
+              child: const Text('دعوت دوستان و انتقال حساب', style: TextStyle(fontSize: 15)),
+            ),
+          ],
           const SizedBox(height: 8),
-          const Text('دمپایی پرنده · نسخه ۱٫۴', style: kSmall),
+          const Text('دمپایی پرنده · نسخه ۱٫۹', style: kSmall),
         ]),
       ),
     );

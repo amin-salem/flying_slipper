@@ -8,6 +8,7 @@ import '../game/characters.dart';
 import '../game/game_painter.dart';
 import '../game/world.dart';
 import '../services/ad_service.dart';
+import '../services/api.dart';
 import '../services/audio.dart';
 import '../services/missions.dart';
 import '../services/save_data.dart';
@@ -63,6 +64,7 @@ class _GameScreenState extends State<GameScreen>
   }
   bool _spun = false;
   bool _bestScore = false;
+  int? _weekRank; // place on this week's leaderboard (from the server)
   String _momLine = _gameOverLines.first;
 
   SaveData get s => SaveData.i;
@@ -86,6 +88,7 @@ class _GameScreenState extends State<GameScreen>
     _w.tutorial = !s.tutorialDone;
     if (_w.tutorial) _hintTime = 0;
     _w.reset();
+    Api.i.startRun(s.skin);
     _ticker = createTicker(_tick)..start();
     Audio.i.setMusicVolume(Audio.musicVolume);
   }
@@ -216,6 +219,16 @@ class _GameScreenState extends State<GameScreen>
     _recJumps = _w.jumps;
     _recGame = true;
     _missionsDone.addAll(done);
+    Api.i.track('run_end', {'m': _w.meters, 'c': _w.coinsThisRun, 'char': s.skin});
+    Api.i
+        .finishRun(
+            meters: _w.meters,
+            coins: _w.coinsThisRun,
+            nearMisses: _w.nearMisses,
+            scoreMul: _w.scoreMul)
+        .then((r) {
+      if (mounted && r != null && r.accepted) setState(() => _weekRank = r.rankWeek);
+    });
     // After the 3rd game, show the one-time starter offer (24 hours).
     if (s.shouldShowStarterOffer) {
       s.startStarterOffer();
@@ -320,6 +333,8 @@ class _GameScreenState extends State<GameScreen>
       _w.wordLetters = lettersOf(s.todayWord);
       _w.wordIndex = s.todayWordProgress;
       _w.reset();
+      Api.i.startRun(s.skin);
+      _weekRank = null;
       _doubled = false;
       _record = false;
       _committedCoins = 0;
@@ -951,6 +966,15 @@ class _GameScreenState extends State<GameScreen>
                       fontWeight: FontWeight.w800)),
             ]),
           ),
+          if (_weekRank != null) ...[
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.emoji_events_rounded, color: C.gold, size: 20),
+              const SizedBox(width: 6),
+              Text('رتبه تو در جدول این هفته: ${fa(_weekRank!)}',
+                  style: const TextStyle(color: C.white, fontSize: 14, fontWeight: FontWeight.w900)),
+            ]),
+          ],
           const SizedBox(height: 18),
           if (!_w.usedContinue) ...[
             GameButton(

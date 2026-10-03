@@ -170,3 +170,33 @@ tools/make_sounds.py        script that generated the sounds
 tools/make_icon.py          script that draws the app icon
 store_assets/               icon for Cafe Bazaar (512×512) and big versions
 ```
+
+## Game server (optional)
+
+The server code is in [`server/`](server/README.md) (Python + FastAPI). Without a server the game works offline exactly as before.
+
+**Connect the app to a server running on your computer:**
+
+1. Start the server: `cd server && uvicorn app.main:app --reload --host 0.0.0.0`
+2. Find your computer's IP address on Wi-Fi (`hostname -I`), for example `192.168.1.5`.
+3. Android blocks plain `http://` by default. For testing, open `android/app/src/debug/AndroidManifest.xml` and add `android:usesCleartextTraffic="true"` to an `<application>` tag:
+   ```xml
+   <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+       <uses-permission android:name="android.permission.INTERNET"/>
+       <application android:usesCleartextTraffic="true"/>
+   </manifest>
+   ```
+4. Run the app with the server address:
+   ```bash
+   flutter run -d R5CRC0PR5WT --dart-define=API_URL=http://192.168.1.5:8000
+   ```
+
+**For the release build** (Cafe Bazaar), the server must use HTTPS. Add the internet permission to `android/app/src/main/AndroidManifest.xml`, above `<application`:
+```xml
+<uses-permission android:name="android.permission.INTERNET"/>
+```
+Then build it:
+```bash
+flutter build apk --release --dart-define=API_URL=https://api.yourgame.ir --dart-define=APP_BUILD=13
+```
+`APP_BUILD` must match the number after `+` in `pubspec.yaml`. The server uses it for forced updates.

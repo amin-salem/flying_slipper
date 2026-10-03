@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
+import 'services/api.dart';
 import 'services/audio.dart';
 import 'services/save_data.dart';
 import 'theme.dart';
@@ -13,6 +14,8 @@ Future<void> main() async {
   await SaveData.i.load();
   // Load sounds in the background so the app opens instantly.
   Audio.i.init(sound: SaveData.i.soundOn, music: SaveData.i.musicOn);
+  // Connect to the game server in the background (the game works without it).
+  Api.i.started = Api.i.init();
   runApp(const FlyingSlipperApp());
 }
 
@@ -45,6 +48,9 @@ class _FlyingSlipperAppState extends State<FlyingSlipperApp>
       Audio.i.resumeMusic();
     } else if (state == AppLifecycleState.paused) {
       Audio.i.pauseMusic();
+      // upload progress before Android may close the app
+      Api.i.syncNow();
+      Api.i.flushEvents();
     }
   }
 

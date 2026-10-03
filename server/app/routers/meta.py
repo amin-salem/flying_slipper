@@ -43,7 +43,7 @@ async def events(body: EventsIn, player: Player = Depends(current_player),
     now = utcnow()
     for e in body.events:
         when = now
-        if e.ts:
+        if e.ts and 0 < e.ts < 4_000_000_000:
             t = from_ts(e.ts)
             # ignore crazy phone clocks
             if now - timedelta(days=7) < t <= now + timedelta(minutes=5):

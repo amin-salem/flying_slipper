@@ -9,6 +9,7 @@ App flow (Poolakey):
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import game_rules as rules
@@ -77,6 +78,10 @@ async def verify(body: VerifyIn, player: Player = Depends(current_player),
     existing.coins = rules.coins_in(grants)
     existing.raw = check.raw
     existing.created_at = existing.created_at or utcnow()
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:  # the same token sent twice at the same moment
+        await session.rollback()
+        return VerifyOut(status="already_granted", consume=consume)
     return VerifyOut(status="already_granted" if renewal and not grants else "granted",
                      grants=grants, consume=consume)

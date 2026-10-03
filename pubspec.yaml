@@ -1,7 +1,7 @@
 name: flying_slipper
 description: "دمپایی پرنده - Flying Slipper game"
 publish_to: 'none'
-version: 1.8.1+12
+version: 1.9.0+13
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   # Saves coins, best score and purchases on the phone.
   shared_preferences: ^2.2.0
+  # Talks to the game server (cloud save, leaderboard, purchases).
+  http: ^1.2.2
   # Sound effects and music (0.10.6+ supports Android Gradle Plugin 9).
   just_audio: ^0.10.6
   # Share the result picture to Instagram / Telegram (13.x supports AGP 9).

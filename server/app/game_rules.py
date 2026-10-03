@@ -179,7 +179,8 @@ def check_run(r: RunResult, server_seconds: float, saved_xp: int) -> str | None:
     secs = max(r.duration_ms / 1000, 0.001)
     if r.meters > secs * MAX_METERS_PER_SECOND + 30:
         return "too_fast"
-    if r.coins > r.meters * 1.5 + 100:
+    # coin characters x weekend x double coins can make one coin worth up to 12
+    if r.coins > r.meters * 14 + 300:
         return "too_many_coins"
     if r.near_misses > r.meters / 5 + 5:
         return "too_many_near_misses"
@@ -221,7 +222,8 @@ def clean_save(data: dict) -> dict:
             raise ValueError(f"{key} must be a number")
         if not isinstance(v, want):
             raise ValueError(f"{key} has the wrong type")
-        if want is int and not (-1 <= v <= 2_000_000_000):
+        hi = 10**13 if key == "starterOfferStart" else 2_000_000_000  # that one is in ms
+        if want is int and not (-1 <= v <= hi):
             raise ValueError(f"{key} out of range")
         if want is str and len(v) > 64:
             raise ValueError(f"{key} too long")
@@ -241,10 +243,11 @@ class Allowance:
 
 
 def allowed_coin_gain(a: Allowance) -> int:
-    # runs: coin abilities, double coins and the weekend event can multiply
-    # coins by up to ~4; plus daily rewards, missions, wheel, word, hunt...
+    # run coins are already multiplied (abilities, weekend, double coins);
+    # extra margin for the house bonus and piggy bank; plus daily rewards,
+    # missions, wheel, word hunt, weekly hunt...
     daily = 4000 * (1 + int(a.hours // 24))
-    return int(a.run_coins * 4.5 + a.bought_coins + a.gift_coins + daily + 3000)
+    return int(a.run_coins * 1.5 + a.bought_coins + a.gift_coins + daily + 3000)
 
 
 def check_save(old: dict, new: dict, a: Allowance) -> list[str]:

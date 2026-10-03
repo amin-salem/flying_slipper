@@ -15,7 +15,7 @@ def test_honest_run_passes():
 def test_impossible_runs_fail():
     assert r.check_run(r.RunResult(5000, 10, 0, 60_000, 1), 65, 0) == "too_fast"
     assert r.check_run(r.RunResult(100, 10, 0, 60_000, 1), 10, 0) == "longer_than_real_time"
-    assert r.check_run(r.RunResult(100, 900, 0, 60_000, 1), 65, 0) == "too_many_coins"
+    assert r.check_run(r.RunResult(100, 9000, 0, 60_000, 1), 65, 0) == "too_many_coins"
     assert r.check_run(r.RunResult(100, 10, 0, 60_000, 9), 65, 0) == "bad_multiplier"
 
 

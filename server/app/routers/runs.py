@@ -1,6 +1,7 @@
 """Games and the leaderboard (this week + all time)."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import game_rules as rules
@@ -55,7 +56,8 @@ async def finish_run(run_id: str, body: RunFinishIn, player: Player = Depends(cu
     run = await session.get(Run, run_id)
     if run is None or run.player_id != player.id:
         raise HTTPException(404, "no_run")
-    if run.status != "started":
+    # A run can be sent again after "continue" (revive), with bigger numbers.
+    if run.status == "rejected" or (run.status == "ok" and body.meters < run.meters):
         raise HTTPException(409, "already_finished")
     now = utcnow()
     elapsed = (now - run.started_at).total_seconds()
@@ -80,7 +82,11 @@ async def finish_run(run_id: str, body: RunFinishIn, player: Player = Depends(cu
     period = rules.week_period(get_settings().timezone)
     best_week = await _bump(session, player.id, period, score, body.meters)
     best_all = await _bump(session, player.id, "all", score, body.meters)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:  # two runs finished at the same moment: rare, try again
+        await session.rollback()
+        raise HTTPException(409, "busy_try_again")
     return RunFinishOut(accepted=True, score=score, best_week=best_week, best_all=best_all,
                         rank_week=await _rank_of(session, period, best_week))
 

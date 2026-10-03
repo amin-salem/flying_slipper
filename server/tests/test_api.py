@@ -74,10 +74,19 @@ async def test_runs_and_leaderboard(client):
         out = r.json()
         assert out["accepted"], out
         assert out["score"] == meters * 10 + 200 + 100
-        # can't finish twice
+        # can't send a smaller result again
         again = await client.post(f"/v1/runs/{run['run_id']}/finish", headers=player["headers"],
                                   json={"meters": 1, "coins": 0, "duration_ms": 1000})
         assert again.status_code == 409
+    # after "continue" the same run is sent again with bigger numbers
+    run_a = (await client.post("/v1/runs/start", json={}, headers=a["headers"])).json()
+    await _age_run(run_a["run_id"], 200)
+    first = (await client.post(f"/v1/runs/{run_a['run_id']}/finish", headers=a["headers"],
+                               json={"meters": 300, "coins": 10, "duration_ms": 60_000})).json()
+    assert first["accepted"]
+    cont = (await client.post(f"/v1/runs/{run_a['run_id']}/finish", headers=a["headers"],
+                              json={"meters": 700, "coins": 30, "duration_ms": 150_000})).json()
+    assert cont["accepted"] and cont["score"] == 7060
     lb = (await client.get("/v1/leaderboard?period=week", headers=a["headers"])).json()
     mine = lb["me"]
     assert mine["me"] and mine["score"] == 8000 + 300
