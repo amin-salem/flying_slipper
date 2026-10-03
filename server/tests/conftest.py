@@ -41,3 +41,12 @@ async def new_player(client, device="device-1234"):
     body = r.json()
     body["headers"] = {"Authorization": f"Bearer {body['token']}"}
     return body
+
+
+def pytest_collection_modifyitems(items):
+    """Run every async test in the same event loop as the database fixture."""
+    session_loop = pytest.mark.asyncio(loop_scope="session")
+    for item in items:
+        if item.get_closest_marker("asyncio") is None and hasattr(item, "obj") and \
+                __import__("inspect").iscoroutinefunction(item.obj):
+            item.add_marker(session_loop)
