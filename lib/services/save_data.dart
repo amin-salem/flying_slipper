@@ -1,9 +1,19 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/characters.dart';
+import '../game/cosmetics.dart';
 import '../game/world.dart' show Ability, PowerKind;
 import 'missions.dart';
+
+/// Result of one pull of the prize machine.
+class MachinePull {
+  const MachinePull(this.id, this.duplicate);
+  final String id;
+  final bool duplicate;
+}
 
 enum PrizeKind { coins, pillow, grandma, box }
 
@@ -61,6 +71,9 @@ class SaveData extends ChangeNotifier {
   String missionDay = '';
   List<int> missionProgress = [0, 0, 0];
   List<bool> missionClaimed = [false, false, false];
+  Set<String> ownedCosmetics = {'slipper_classic', 'belt_classic'};
+  String equippedSlipper = 'slipper_classic';
+  String equippedBelt = 'belt_classic';
 
   Future<void> load() async {
     _p = await SharedPreferences.getInstance();
@@ -112,6 +125,15 @@ class SaveData extends ChangeNotifier {
     owned.add('ali');
     owned.removeWhere((id) => !kCharacters.any((c) => c.id == id));
     if (!owned.contains(skin)) skin = 'ali';
+
+    ownedCosmetics = (_p.getStringList('ownedCosmetics') ?? const <String>[]).toSet()
+      ..addAll(const ['slipper_classic', 'belt_classic']);
+    equippedSlipper = _p.getString('equippedSlipper') ?? 'slipper_classic';
+    equippedBelt = _p.getString('equippedBelt') ?? 'belt_classic';
+    if (!ownedCosmetics.contains(equippedSlipper)) equippedSlipper = 'slipper_classic';
+    if (!ownedCosmetics.contains(equippedBelt)) equippedBelt = 'belt_classic';
+    currentSlipper = slipperById(equippedSlipper);
+    currentBelt = beltById(equippedBelt);
   }
 
   Future<void> _save() async {
@@ -152,6 +174,9 @@ class SaveData extends ChangeNotifier {
         'missionProgress', [for (final v in missionProgress) '$v']);
     await _p.setStringList(
         'missionClaimed', [for (final v in missionClaimed) v ? '1' : '0']);
+    await _p.setStringList('ownedCosmetics', ownedCosmetics.toList());
+    await _p.setString('equippedSlipper', equippedSlipper);
+    await _p.setString('equippedBelt', equippedBelt);
   }
 
   Character get character => characterById(skin);
@@ -521,6 +546,51 @@ class SaveData extends ChangeNotifier {
   void selectCharacter(String id) {
     if (!owned.contains(id)) return;
     skin = id;
+    _save();
+  }
+
+  // ---- Prize machine (slipper and belt skins) ----
+  static const machineCost = 1000;
+  static const machineRefund = 400;
+
+  /// Pulls the prize machine. Returns null if there are not enough coins.
+  MachinePull? pullMachine() {
+    if (!spend(machineCost)) return null;
+    final pool = <(String, int)>[
+      for (final s in kSlippers)
+        if (s.id != 'slipper_classic') (s.id, s.rarity),
+      for (final b in kBelts)
+        if (b.id != 'belt_classic') (b.id, b.rarity),
+    ];
+    final total = pool.fold<int>(0, (a, e) => a + kRarityWeight[e.$2]);
+    int roll = Random().nextInt(total);
+    String id = pool.last.$1;
+    for (final e in pool) {
+      roll -= kRarityWeight[e.$2];
+      if (roll < 0) {
+        id = e.$1;
+        break;
+      }
+    }
+    final dup = ownedCosmetics.contains(id);
+    if (dup) {
+      coins += machineRefund;
+    } else {
+      ownedCosmetics.add(id);
+    }
+    _save();
+    return MachinePull(id, dup);
+  }
+
+  void equipCosmetic(String id) {
+    if (!ownedCosmetics.contains(id)) return;
+    if (id.startsWith('slipper_')) {
+      equippedSlipper = id;
+      currentSlipper = slipperById(id);
+    } else {
+      equippedBelt = id;
+      currentBelt = beltById(id);
+    }
     _save();
   }
 

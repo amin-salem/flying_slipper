@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 import 'world.dart' show Ability;
+import 'cosmetics.dart';
 
 enum Rarity { common, rare, epic, legendary }
 
@@ -1072,7 +1073,7 @@ void drawDad(
 
   // belt arm
   const shoulder = Offset(18, -116);
-  final belt = _s(const Color(0xFF6B3E1E), 7);
+  final belt = _s(currentBelt.color, 7);
   final beltEdge = _s(C.ink, 7 + _ow * 2);
   if (reach != null) {
     // cracking the belt: arm stretched towards the kid (belt drawn by painter)
@@ -1097,7 +1098,7 @@ void drawDad(
     final end = twirl + 4.6;
     final bp = loop.center + Offset(cos(end) * loop.width / 2, sin(end) * loop.height / 2);
     final buckle = Rect.fromCenter(center: bp, width: 12, height: 10);
-    c.drawRect(buckle, _f(C.gold));
+    c.drawRect(buckle, _f(currentBelt.buckle));
     c.drawRect(buckle, _s(C.ink, 2));
     c.drawCircle(hand, 6, _f(skin));
     c.drawCircle(hand, 6, _outline);
@@ -1124,9 +1125,9 @@ void drawBeltWhip(Canvas c, Offset from, Offset tip, double time) {
     path.lineTo(from.dx + (tip.dx - from.dx) * t, from.dy + (tip.dy - from.dy) * t + wave);
   }
   c.drawPath(path, _s(C.ink, 7 + _ow * 2));
-  c.drawPath(path, _s(const Color(0xFF6B3E1E), 7));
+  c.drawPath(path, _s(currentBelt.color, 7));
   final buckle = Rect.fromCenter(center: tip, width: 14, height: 12);
-  c.drawRect(buckle, _f(C.gold));
+  c.drawRect(buckle, _f(currentBelt.buckle));
   c.drawRect(buckle, _s(C.ink, 2));
   // crack sparks at the tip
   for (int k = 0; k < 4; k++) {
@@ -1155,9 +1156,13 @@ void drawRemote(Canvas c, Offset center, double width, double rotation) {
   c.restore();
 }
 
-/// The famous blue plastic slipper with a red strap (top-down-ish view).
+/// The famous plastic slipper (top-down-ish view). Colours come from the
+/// equipped skin unless given.
 void drawSlipper(Canvas c, Offset center, double width, double rotation,
-    {Color sole = const Color(0xFF3F70C8), Color strap = const Color(0xFFE53935)}) {
+    {Color? sole, Color? strap, SlipperSkin? skin}) {
+  final k = skin ?? currentSlipper;
+  final soleColor = sole ?? k.sole;
+  final strapColor = strap ?? k.strap;
   c.save();
   c.translate(center.dx, center.dy);
   c.rotate(rotation);
@@ -1166,26 +1171,65 @@ void drawSlipper(Canvas c, Offset center, double width, double rotation,
   // shadow-ish thickness
   final soleRect = RRect.fromRectAndRadius(
       const Rect.fromLTWH(-30, -9, 60, 20), const Radius.circular(10));
-  c.drawRRect(soleRect.shift(const Offset(0, 3)), _f(const Color(0xFF1F3F86)));
-  c.drawRRect(soleRect, _f(sole));
+  c.drawRRect(soleRect.shift(const Offset(0, 3)), _f(k.edge));
+  c.drawRRect(soleRect, _f(soleColor));
+  // patterns
+  if (k.pattern != 0) {
+    c.save();
+    c.clipRRect(soleRect);
+    if (k.pattern == 1) {
+      for (int i = 0; i < 5; i++) {
+        c.drawPath(starPath(Offset(-22 + i * 11.0, 1), 3.4), _f(strapColor.withAlpha(200)));
+      }
+    } else if (k.pattern == 2) {
+      for (double x = -30; x < 30; x += 7) {
+        c.drawRect(Rect.fromLTWH(x, -9, 3.5, 20), _f(const Color(0xFF2B1B3A)));
+      }
+    } else {
+      for (int i = 0; i < 6; i++) {
+        c.drawCircle(Offset(-24 + i * 9.5, (i.isEven ? -3 : 4)), 1.6, _f(const Color(0xCCFFFFFF)));
+      }
+    }
+    c.restore();
+  } else {
+    // little grip dots
+    for (int i = 0; i < 5; i++) {
+      c.drawCircle(Offset(-20 + i * 9.0, 2), 1.4, _f(const Color(0x553A2A6E)));
+    }
+  }
   c.drawRRect(soleRect.shift(const Offset(0, 3)), _s(C.ink, 2.2));
   c.drawRRect(soleRect, _s(C.ink, 2.2));
-  // little grip dots
-  for (int i = 0; i < 5; i++) {
-    c.drawCircle(Offset(-20 + i * 9.0, 2), 1.4, _f(const Color(0x553A2A6E)));
-  }
   // strap
   final strapP = Path()
     ..moveTo(-8, -8)
     ..quadraticBezierTo(4, -22, 16, -8);
   c.drawPath(strapP, _s(C.ink, 9 + 4));
-  c.drawPath(strapP, _s(strap, 9));
+  c.drawPath(strapP, _s(strapColor, 9));
   c.drawPath(
       Path()
         ..moveTo(-4, -12)
         ..quadraticBezierTo(4, -19, 10, -13),
       _s(const Color(0x66FFFFFF), 2));
   c.restore();
+}
+
+/// A short piece of belt for shop previews.
+void drawBeltSample(Canvas c, Offset center, double width, BeltSkin b) {
+  final p = Path()
+    ..moveTo(center.dx - width / 2, center.dy + 6)
+    ..quadraticBezierTo(center.dx, center.dy - 14, center.dx + width / 2 - 14, center.dy + 4);
+  c.drawPath(p, _s(C.ink, 9 + _ow * 2));
+  c.drawPath(p, _s(b.color, 9));
+  if (b.pattern == 1) {
+    for (int i = 0; i < 6; i++) {
+      final t = i / 6;
+      c.drawCircle(Offset(center.dx - width / 2 + t * (width - 14), center.dy + 4 - 12 * (1 - (2 * t - 1) * (2 * t - 1))),
+          1.6, _f(const Color(0x88FFFFFF)));
+    }
+  }
+  final buckle = Rect.fromCenter(center: Offset(center.dx + width / 2 - 8, center.dy + 4), width: 16, height: 14);
+  c.drawRect(buckle, _f(b.buckle));
+  c.drawRect(buckle, _s(C.ink, 2));
 }
 
 extension on bool {

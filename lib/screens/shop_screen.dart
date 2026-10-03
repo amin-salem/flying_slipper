@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../game/characters.dart';
+import '../game/cosmetics.dart';
 import '../game/game_painter.dart' show drawPowerIcon;
 import '../game/world.dart' show PowerKind, powerNames;
 import '../services/ad_service.dart';
@@ -48,7 +51,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 ),
                 _Tabs(
                   index: _tab,
-                  labels: const ['سکه و بسته', 'شخصیت‌ها', 'پاورآپ'],
+                  labels: const ['سکه و بسته', 'شخصیت‌ها', 'پاورآپ', 'دمپایی‌ها'],
                   onChanged: (i) => setState(() => _tab = i),
                 ),
                 const SizedBox(height: 8),
@@ -58,7 +61,8 @@ class _ShopScreenState extends State<ShopScreen> {
                     child: switch (_tab) {
                       0 => const _CoinsTab(key: ValueKey(0)),
                       1 => const _CharactersTab(key: ValueKey(1)),
-                      _ => const _PowerTab(key: ValueKey(2)),
+                      2 => const _PowerTab(key: ValueKey(2)),
+                      _ => const _SkinsTab(key: ValueKey(3)),
                     },
                   ),
                 ),
@@ -115,7 +119,7 @@ class _Tabs extends StatelessWidget {
                   child: Text(labels[i],
                       style: TextStyle(
                           fontWeight: FontWeight.w900,
-                          fontSize: 14,
+                          fontSize: 13,
                           color: i == index ? C.white : C.inkSoft)),
                 ),
               ),
@@ -1056,6 +1060,429 @@ class _PowerRow extends StatelessWidget {
             const SizedBox(width: 4),
             Text(fa(price), style: const TextStyle(fontSize: 14)),
           ]),
+        ),
+      ]),
+    );
+  }
+}
+
+
+// ---------------------------------------------------------------- Skins
+
+/// Is this id a slipper skin (otherwise a belt skin)?
+bool _isSlipper(String id) => id.startsWith('slipper_');
+
+String _skinName(String id) =>
+    _isSlipper(id) ? slipperById(id).name : beltById(id).name;
+
+int _skinRarity(String id) =>
+    _isSlipper(id) ? slipperById(id).rarity : beltById(id).rarity;
+
+class _SkinPreview extends CustomPainter {
+  _SkinPreview(this.id, {this.t = 0});
+  final String id;
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    if (_isSlipper(id)) {
+      drawSlipper(canvas, c, size.width * 0.62, -0.35 + math.sin(t * math.pi * 2) * 0.12,
+          skin: slipperById(id));
+    } else {
+      drawBeltSample(canvas, c, size.width * 0.8, beltById(id));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SkinPreview old) => old.id != id || old.t != t;
+}
+
+class _SkinsTab extends StatelessWidget {
+  const _SkinsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SaveData.i;
+    Widget grid(List<String> ids, String equipped) => GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 0.72,
+          children: [
+            for (final id in ids)
+              _SkinCard(
+                id: id,
+                owned: s.ownedCosmetics.contains(id),
+                equipped: equipped == id,
+              ),
+          ],
+        );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: [
+        const _MachineCard(),
+        const SizedBox(height: 18),
+        const _SectionTitle('دمپایی مامان'),
+        const SizedBox(height: 8),
+        grid([for (final k in kSlippers) k.id], s.equippedSlipper),
+        const SizedBox(height: 18),
+        const _SectionTitle('کمربند بابا'),
+        const SizedBox(height: 8),
+        grid([for (final b in kBelts) b.id], s.equippedBelt),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(text,
+          style: const TextStyle(
+              fontWeight: FontWeight.w900, fontSize: 18, color: C.ink)),
+    );
+  }
+}
+
+class _MachineCard extends StatelessWidget {
+  const _MachineCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SaveData.i;
+    final total = kSlippers.length + kBelts.length;
+    final have = s.ownedCosmetics.length;
+    return Panel(
+      radius: 26,
+      gradient: const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [Color(0xFF7646E8), Color(0xFF3A2A6E)],
+      ),
+      child: Row(children: [
+        const _MachineIcon(),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('دستگاه جایزه',
+                style: TextStyle(
+                    fontWeight: FontWeight.w900, fontSize: 20, color: C.white)),
+            const SizedBox(height: 2),
+            Text(
+                'دمپایی و کمربند جدید ببر! تکراری بود ${fa(SaveData.machineRefund)} سکه پس می‌گیری.',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: Color(0xFFE6DCFF))),
+            const SizedBox(height: 4),
+            Text('مجموعه: ${fa(have)} از ${fa(total)}',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w900, fontSize: 12, color: C.gold)),
+            const SizedBox(height: 8),
+            GameButton(
+              tone: Tone.gold,
+              height: 46,
+              onTap: () => _pull(context),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const CoinIcon(size: 20),
+                const SizedBox(width: 6),
+                Text(fa(SaveData.machineCost),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 17, color: C.ink)),
+                const SizedBox(width: 8),
+                const Text('بچرخون!',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 15, color: C.ink)),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  void _pull(BuildContext context) {
+    final r = SaveData.i.pullMachine();
+    if (r == null) {
+      _toast(context, 'سکه کافی نداری! از تب «سکه و بسته» بگیر.');
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _PullDialog(result: r),
+    );
+  }
+}
+
+class _MachineIcon extends StatelessWidget {
+  const _MachineIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 84,
+      height: 104,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF5A4E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: C.ink, width: 3),
+      ),
+      child: Column(children: [
+        const SizedBox(height: 8),
+        Container(
+          width: 64,
+          height: 56,
+          decoration: BoxDecoration(
+            color: const Color(0xFFDDF4FF),
+            shape: BoxShape.circle,
+            border: Border.all(color: C.ink, width: 3),
+          ),
+          child: CustomPaint(painter: _SkinPreview('slipper_gold')),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: 30,
+          height: 18,
+          decoration: BoxDecoration(
+            color: C.ink,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _PullDialog extends StatefulWidget {
+  const _PullDialog({required this.result});
+  final MachinePull result;
+
+  @override
+  State<_PullDialog> createState() => _PullDialogState();
+}
+
+class _PullDialogState extends State<_PullDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _a = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1800))
+    ..forward()
+    ..addStatusListener((st) {
+      if (st == AnimationStatus.completed && mounted) {
+        setState(() {});
+        Audio.i.play(widget.result.duplicate ? Sfx.coin : Sfx.reward);
+      }
+    })
+    ..addListener(_tick);
+
+  late final List<String> _all = [
+    for (final k in kSlippers) k.id,
+    for (final b in kBelts) b.id,
+  ];
+  int _shown = 0;
+  int _lastStep = -1;
+
+  void _tick() {
+    // fast at first, slower near the end (like a real machine)
+    final v = Curves.easeOutCubic.transform(_a.value);
+    final step = (v * 22).floor();
+    if (step != _lastStep) {
+      _lastStep = step;
+      if (_a.value < 1) {
+        setState(() => _shown = (_shown + 1) % _all.length);
+        Audio.i.play(Sfx.click);
+      } else {
+        setState(() {});
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _a.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final done = _a.isCompleted;
+    final id = done ? widget.result.id : _all[_shown];
+    final rarity = _skinRarity(id);
+    final rc = kCosmeticRarityColor[rarity];
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Panel(
+        radius: 28,
+        padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+        border: Border.all(color: done ? rc : C.ink, width: 4),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(
+              done
+                  ? (widget.result.duplicate ? 'تکراری بود!' : 'جایزه جدید!')
+                  : 'داره می‌چرخه...',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w900, fontSize: 24, color: C.ink)),
+          const SizedBox(height: 12),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: 170,
+            height: 150,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: RadialGradient(colors: [
+                done ? rc.withValues(alpha: 0.35) : const Color(0xFFF3ECFF),
+                const Color(0xFFFFF7EA),
+              ]),
+            ),
+            child: AnimatedScale(
+              scale: done ? 1.15 : 1,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.elasticOut,
+              child: CustomPaint(painter: _SkinPreview(id)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Opacity(
+            opacity: done ? 1 : 0.35,
+            child: Column(children: [
+              Text(_skinName(id),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 20, color: C.ink)),
+              Text(kCosmeticRarity[rarity],
+                  style: TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 14, color: rc)),
+            ]),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 22,
+            child: done && widget.result.duplicate
+                ? Row(mainAxisSize: MainAxisSize.min, children: [
+                    const CoinIcon(size: 18),
+                    const SizedBox(width: 4),
+                    Text('${fa(SaveData.machineRefund)} سکه برگشت',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: C.inkSoft)),
+                  ])
+                : null,
+          ),
+          const SizedBox(height: 10),
+          if (done)
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              if (!widget.result.duplicate) ...[
+                GameButton(
+                  tone: Tone.teal,
+                  height: 48,
+                  onTap: () {
+                    SaveData.i.equipCosmetic(id);
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('استفاده کن',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          color: C.white)),
+                ),
+                const SizedBox(width: 10),
+              ],
+              GameButton(
+                tone: Tone.white,
+                height: 48,
+                onTap: () => Navigator.of(context).pop(),
+                child: const Text('باشه',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 16, color: C.ink)),
+              ),
+            ])
+          else
+            const SizedBox(height: 54),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SkinCard extends StatelessWidget {
+  const _SkinCard({required this.id, required this.owned, required this.equipped});
+  final String id;
+  final bool owned;
+  final bool equipped;
+
+  @override
+  Widget build(BuildContext context) {
+    final rarity = _skinRarity(id);
+    final rc = kCosmeticRarityColor[rarity];
+    return Panel(
+      radius: 20,
+      padding: const EdgeInsets.all(6),
+      border: Border.all(color: equipped ? C.teal : rc.withValues(alpha: 0.5), width: equipped ? 3 : 2),
+      child: Column(children: [
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              color: rc.withValues(alpha: 0.12),
+            ),
+            child: Stack(children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: owned ? 1 : 0.25,
+                  child: CustomPaint(painter: _SkinPreview(id)),
+                ),
+              ),
+              if (!owned)
+                const Center(
+                    child: Icon(Icons.lock_rounded, color: C.inkSoft, size: 26)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(_skinName(id),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                fontWeight: FontWeight.w900, fontSize: 12, color: C.ink)),
+        Text(kCosmeticRarity[rarity],
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 10, color: rc)),
+        const SizedBox(height: 4),
+        SizedBox(
+          height: 30,
+          child: !owned
+              ? const Center(
+                  child: Text('از دستگاه',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                          color: C.inkSoft)))
+              : equipped
+                  ? const Center(
+                      child: Icon(Icons.check_circle_rounded,
+                          color: C.teal, size: 24))
+                  : GameButton(
+                      tone: Tone.teal,
+                      height: 30,
+                      radius: 12,
+                      depth: 3,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      onTap: () => SaveData.i.equipCosmetic(id),
+                      child: const Text('انتخاب',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              color: C.white)),
+                    ),
         ),
       ]),
     );
