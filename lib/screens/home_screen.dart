@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../game/characters.dart';
 import '../game/room_decor.dart';
+import '../game/game_painter.dart' show drawHuntToken;
 import '../services/audio.dart';
 import '../services/missions.dart';
 import '../services/save_data.dart';
@@ -754,10 +755,57 @@ class _MissionsSheet extends StatelessWidget {
                 const SizedBox(height: 10),
               ],
               _wordCard(),
+              const SizedBox(height: 10),
+              _huntCard(),
             ]),
           ),
         );
       },
+    );
+  }
+
+  Widget _huntCard() {
+    final s = SaveData.i;
+    final got = s.weekTokens;
+    final maxT = kHuntTrack.last[0];
+    final next = kHuntTrack.where((r) => r[0] > got).toList();
+    final now = DateTime.now();
+    final dayOfHunt = DateTime.utc(now.year, now.month, now.day)
+            .difference(DateTime.utc(2024, 1, 6))
+            .inDays %
+        7;
+    final daysLeft = 7 - dayOfHunt;
+    return Panel(
+      radius: 20,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      gradient: const LinearGradient(colors: [Color(0xFFF3ECFF), Color(0xFFE2D3FF)]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          SizedBox(width: 26, height: 26, child: CustomPaint(painter: _HuntIconPainter(s.huntToken))),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('شکار هفته: ${huntTokenNames[s.huntToken]} جمع کن',
+                style: const TextStyle(fontWeight: FontWeight.w900, color: C.purpleEdge)),
+          ),
+          Text('${fa(daysLeft.clamp(1, 7))} روز مونده', style: kSmall.copyWith(fontSize: 11)),
+        ]),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: (got / maxT).clamp(0.0, 1.0),
+            minHeight: 12,
+            backgroundColor: const Color(0x55FFFFFF),
+            color: C.purpleDark,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+            next.isEmpty
+                ? 'همه جایزه‌های این هفته رو گرفتی!'
+                : '${fa(got)} از ${fa(next.first[0])} · جایزه بعدی: ${huntRewardText(next.first)}',
+            style: kSmall.copyWith(fontSize: 12, color: C.ink)),
+      ]),
     );
   }
 
@@ -854,4 +902,16 @@ class _MissionsSheet extends StatelessWidget {
       ]),
     );
   }
+}
+
+
+class _HuntIconPainter extends CustomPainter {
+  _HuntIconPainter(this.t);
+  final HuntToken t;
+
+  @override
+  void paint(Canvas canvas, Size size) => drawHuntToken(canvas, t, size.center(Offset.zero), size.width * 0.42);
+
+  @override
+  bool shouldRepaint(covariant _HuntIconPainter old) => old.t != t;
 }

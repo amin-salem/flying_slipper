@@ -234,6 +234,11 @@ class GameWorld {
   final List<Pickup> pickups = [];
   final List<GiftBox> giftBoxes = [];
 
+  // ---- Weekly hunt tokens (small, frequent) ----
+  final List<CoinItem> tokens = [];
+  int tokensThisRun = 0;
+  double _tokenTimer = 4;
+
   // ---- Daily word hunt: letters appear one at a time, in order ----
   List<String> wordLetters = const []; // set by the screen before reset
   int wordIndex = 0; // how many letters are already collected
@@ -324,6 +329,10 @@ class GameWorld {
     for (final l in letters) {
       l.x += dx;
       l.y += dy;
+    }
+    for (final t in tokens) {
+      t.x += dx;
+      t.y += dy;
     }
   }
 
@@ -533,6 +542,9 @@ class GameWorld {
     giftBoxes.clear();
     boxesThisRun = 0;
     letters.clear();
+    tokens.clear();
+    tokensThisRun = 0;
+    _tokenTimer = 4;
     _letterTimer = 10 + rng.nextDouble() * 6;
     _boxTimer = 25 + rng.nextDouble() * 15;
     magnetT = doubleT = skateT = balloonT = 0;
@@ -1068,6 +1080,15 @@ class GameWorld {
       _obstacleTimer = _lerp(1.9, 0.95, anger) + rng.nextDouble() * 1.0;
     }
 
+    // Weekly hunt tokens
+    _tokenTimer -= dt;
+    if (_tokenTimer <= 0) {
+      final x = size.width + 30;
+      final blocked = hazards.any((h) => !h.isSlipper && (h.x - x).abs() < 70);
+      tokens.add(CoinItem(x, floorY - (blocked || rng.nextBool() ? 120 : 40)));
+      _tokenTimer = 5 + rng.nextDouble() * 4;
+    }
+
     // Next letter of the daily word (one on screen at a time)
     if (!wordComplete && letters.isEmpty) {
       _letterTimer -= dt;
@@ -1203,6 +1224,10 @@ class GameWorld {
       l.age += dt;
       l.x -= speed * dt;
     }
+    for (final t in tokens) {
+      t.x -= speed * dt;
+    }
+    tokens.removeWhere((t) => t.x < -40);
     letters.removeWhere((l) => l.x < -60);
 
     for (final t in texts) {
@@ -1254,6 +1279,15 @@ class GameWorld {
       if (kid.inflate(16).contains(Offset(pk.x, py))) {
         _activate(pk.kind);
         _burst(pk.x, py, 10, const Color(0xFFA77BFF), 1);
+        return true;
+      }
+      return false;
+    });
+    tokens.removeWhere((t) {
+      if (kid.inflate(14).contains(Offset(t.x, t.y))) {
+        tokensThisRun++;
+        events.add(GameEvent.coin);
+        _burst(t.x, t.y, 6, const Color(0xFF8BC34A), 1);
         return true;
       }
       return false;

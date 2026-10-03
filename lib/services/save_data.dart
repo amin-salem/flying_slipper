@@ -49,6 +49,8 @@ class SaveData extends ChangeNotifier {
   int piggy = 0; // coins waiting in the piggy bank
   int mysteryBoxes = 0;
   Set<String> repairs = {}; // house repairs done
+  int huntWeek = -1;
+  int huntTokens = 0;
   String wordDay = '';
   int wordProgress = 0; // letters of today's word collected
   int starterOfferStart = 0; // when the 24h starter offer began (ms)
@@ -85,6 +87,8 @@ class SaveData extends ChangeNotifier {
     piggy = _p.getInt('piggy') ?? 0;
     mysteryBoxes = _p.getInt('mysteryBoxes') ?? 0;
     repairs = (_p.getStringList('repairs') ?? const <String>[]).toSet();
+    huntWeek = _p.getInt('huntWeek') ?? -1;
+    huntTokens = _p.getInt('huntTokens') ?? 0;
     wordDay = _p.getString('wordDay') ?? '';
     wordProgress = _p.getInt('wordProgress') ?? 0;
     starterOfferStart = _p.getInt('starterOfferStart') ?? 0;
@@ -130,6 +134,8 @@ class SaveData extends ChangeNotifier {
     await _p.setInt('piggy', piggy);
     await _p.setInt('mysteryBoxes', mysteryBoxes);
     await _p.setStringList('repairs', repairs.toList());
+    await _p.setInt('huntWeek', huntWeek);
+    await _p.setInt('huntTokens', huntTokens);
     await _p.setString('wordDay', wordDay);
     await _p.setInt('wordProgress', wordProgress);
     await _p.setInt('starterOfferStart', starterOfferStart);
@@ -272,6 +278,37 @@ class SaveData extends ChangeNotifier {
     lastDaily = _today;
     _save();
     return r;
+  }
+
+  // ---- Weekly hunt ----
+  int get thisWeek => weekNumber(DateTime.now());
+  HuntToken get huntToken => tokenForWeek(thisWeek);
+
+  int get weekTokens {
+    if (huntWeek != thisWeek) {
+      huntWeek = thisWeek;
+      huntTokens = 0;
+    }
+    return huntTokens;
+  }
+
+  /// Adds tokens and gives every reward passed. Returns the rewards reached.
+  List<List<int>> addHuntTokens(int n) {
+    if (n <= 0) return const [];
+    final before = weekTokens;
+    huntTokens = before + n;
+    final reached = <List<int>>[];
+    for (final r in kHuntTrack) {
+      if (before < r[0] && huntTokens >= r[0]) {
+        reached.add(r);
+        coins += r[1];
+        mysteryBoxes += r[2];
+        pillows += r[3];
+        grandmas += r[4];
+      }
+    }
+    _save();
+    return reached;
   }
 
   // ---- Fix the house ----

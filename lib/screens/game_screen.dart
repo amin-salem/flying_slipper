@@ -50,6 +50,8 @@ class _GameScreenState extends State<GameScreen>
   final List<Mission> _missionsDone = [];
   int _piggyAdded = 0;
   int _recBoxes = 0;
+  int _recTokens = 0;
+  final List<List<int>> _huntRewards = [];
   int _houseBonusCoins = 0;
 
   void _applyHouse() {
@@ -201,6 +203,8 @@ class _GameScreenState extends State<GameScreen>
     }
     _piggyAdded += s.addToPiggy(_w.coinsThisRun - _recCoins);
     s.addBoxes(_w.boxesThisRun - _recBoxes);
+    _huntRewards.addAll(s.addHuntTokens(_w.tokensThisRun - _recTokens));
+    _recTokens = _w.tokensThisRun;
     _recBoxes = _w.boxesThisRun;
     _recCoins = _w.coinsThisRun;
     _recNear = _w.nearMisses;
@@ -321,6 +325,8 @@ class _GameScreenState extends State<GameScreen>
       _missionsDone.clear();
       _piggyAdded = 0;
       _recBoxes = 0;
+      _recTokens = 0;
+      _huntRewards.clear();
       _spun = false;
       _houseBonusCoins = 0;
       _hintTime = 0;
@@ -351,7 +357,7 @@ class _GameScreenState extends State<GameScreen>
                   onPointerUp: (_) => _w.releasePress(),
                   onPointerCancel: (_) => _w.releasePress(),
                   child: CustomPaint(
-                    painter: GamePainter(_w, s.character, _frame),
+                    painter: GamePainter(_w, s.character, _frame, token: s.huntToken),
                   ),
                 ),
               ),
@@ -829,6 +835,25 @@ class _GameScreenState extends State<GameScreen>
                   style: kBody.copyWith(fontWeight: FontWeight.w900)),
             ),
           ),
+          if (_w.tokensThisRun > 0) ...[
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CustomPaint(painter: _TokenPainter(s.huntToken))),
+              const SizedBox(width: 6),
+              Text('${fa(_w.tokensThisRun)} ${huntTokenNames[s.huntToken]} · این هفته ${fa(s.weekTokens)}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: C.ink)),
+            ]),
+          ],
+          for (final r in _huntRewards) ...[
+            const SizedBox(height: 6),
+            Center(
+              child: Text('جایزه هفتگی: ${huntRewardText(r)}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: C.goldEdge)),
+            ),
+          ],
           if (_houseBonusCoins > 0) ...[
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -1091,4 +1116,16 @@ class _PowerIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PowerIconPainter old) => old.kind != kind;
+}
+
+
+class _TokenPainter extends CustomPainter {
+  _TokenPainter(this.t);
+  final HuntToken t;
+
+  @override
+  void paint(Canvas canvas, Size size) => drawHuntToken(canvas, t, size.center(Offset.zero), size.width * 0.42);
+
+  @override
+  bool shouldRepaint(covariant _TokenPainter old) => old.t != t;
 }

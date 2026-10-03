@@ -7,10 +7,12 @@ import 'characters.dart';
 import 'house_decor.dart';
 import 'room_decor.dart';
 import 'world.dart';
+import '../services/missions.dart' show HuntToken;
 
 /// Draws one frame of the game.
 class GamePainter extends CustomPainter {
-  GamePainter(this.w, this.ch, this.frame);
+  GamePainter(this.w, this.ch, this.frame, {this.token = HuntToken.pistachio});
+  final HuntToken token;
 
   final GameWorld w;
   final Character ch;
@@ -34,6 +36,7 @@ class GamePainter extends CustomPainter {
     _pickups(canvas);
     _giftBoxes(canvas);
     _letters(canvas);
+    _tokens(canvas);
     _obstacles(canvas);
     _parent(canvas);
     _warning(canvas);
@@ -191,6 +194,12 @@ class GamePainter extends CustomPainter {
     for (final coin in w.coins) {
       final sq = 0.35 + 0.65 * cos(w.time * 5 + coin.x / 60).abs();
       paintCoin(c, Offset(coin.x, coin.y), 12, sq);
+    }
+  }
+
+  void _tokens(Canvas c) {
+    for (final t in w.tokens) {
+      drawHuntToken(c, token, Offset(t.x, t.y + sin(w.time * 4 + t.x / 50) * 4), 13);
     }
   }
 
@@ -854,4 +863,49 @@ void drawGiftBox(Canvas c, Offset p, double r, double time) {
   )..layout();
   tp.paint(c, Offset(-tp.width / 2 - r * 0.45, r * 0.15 - tp.height / 2));
   c.restore();
+}
+
+
+/// The weekly hunt item: pistachio, saffron flower or nabat (rock candy).
+void drawHuntToken(Canvas c, HuntToken t, Offset p, double r) {
+  final ink = Paint()
+    ..color = C.ink
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = r * 0.12;
+  switch (t) {
+    case HuntToken.pistachio:
+      final shell = Rect.fromCenter(center: p, width: r * 1.7, height: r * 1.3);
+      c.drawOval(shell, Paint()..color = const Color(0xFFE9D5A8));
+      c.drawOval(Rect.fromCenter(center: p + Offset(0, -r * 0.05), width: r * 0.9, height: r * 0.8),
+          Paint()..color = const Color(0xFF8BC34A));
+      c.drawOval(shell, ink);
+    case HuntToken.saffron:
+      for (int k = 0; k < 6; k++) {
+        final a = k * pi / 3;
+        c.drawOval(
+            Rect.fromCenter(center: p + Offset(cos(a), sin(a)) * r * 0.55, width: r * 0.9, height: r * 0.6),
+            Paint()..color = const Color(0xFF9C6ADE));
+      }
+      for (int k = -1; k <= 1; k++) {
+        c.drawLine(p, p + Offset(k * r * 0.35, -r * 0.8), Paint()
+          ..color = const Color(0xFFE53935)
+          ..strokeWidth = r * 0.16
+          ..strokeCap = StrokeCap.round);
+      }
+      c.drawCircle(p, r * 0.22, Paint()..color = C.gold);
+    case HuntToken.nabat:
+      final crystal = Path()
+        ..moveTo(p.dx, p.dy - r)
+        ..lineTo(p.dx + r * 0.75, p.dy - r * 0.2)
+        ..lineTo(p.dx + r * 0.45, p.dy + r * 0.9)
+        ..lineTo(p.dx - r * 0.45, p.dy + r * 0.9)
+        ..lineTo(p.dx - r * 0.75, p.dy - r * 0.2)
+        ..close();
+      c.drawPath(crystal, Paint()..color = const Color(0xFFFFC93C));
+      c.drawLine(p + Offset(-r * 0.2, -r * 0.5), p + Offset(r * 0.1, r * 0.4),
+          Paint()
+            ..color = const Color(0x99FFFFFF)
+            ..strokeWidth = r * 0.18);
+      c.drawPath(crystal, ink);
+  }
 }

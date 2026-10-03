@@ -128,3 +128,39 @@ String wordFor(DateTime day) {
 List<String> lettersOf(String word) => word.split('');
 
 const int kWordReward = 500;
+
+
+// ---------------------------------------------------------------- weekly hunt
+
+/// What you collect this week (changes every week).
+enum HuntToken { pistachio, saffron, nabat }
+
+const huntTokenNames = {
+  HuntToken.pistachio: 'پسته',
+  HuntToken.saffron: 'گل زعفران',
+  HuntToken.nabat: 'نبات',
+};
+
+int weekNumber(DateTime d) =>
+    DateTime.utc(d.year, d.month, d.day).difference(DateTime.utc(2024, 1, 6)).inDays ~/ 7;
+
+HuntToken tokenForWeek(int week) => HuntToken.values[week % HuntToken.values.length];
+
+/// Reward track: [tokens needed, coins, boxes, pillows, grandmas]
+const List<List<int>> kHuntTrack = [
+  [25, 200, 0, 0, 0],
+  [60, 0, 1, 0, 0],
+  [100, 500, 0, 0, 0],
+  [150, 0, 0, 1, 1],
+  [220, 1000, 0, 0, 0],
+  [300, 1500, 2, 0, 0],
+];
+
+String huntRewardText(List<int> r) {
+  final parts = <String>[];
+  if (r[1] > 0) parts.add('${_fa(r[1])} سکه');
+  if (r[2] > 0) parts.add('${_fa(r[2])} جعبه شانس');
+  if (r[3] > 0) parts.add('${_fa(r[3])} بالش');
+  if (r[4] > 0) parts.add('${_fa(r[4])} مادربزرگ');
+  return parts.join(' + ');
+}
