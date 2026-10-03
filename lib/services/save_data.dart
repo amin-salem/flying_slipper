@@ -25,6 +25,7 @@ class SaveData extends ChangeNotifier {
   int gamesPlayed = 0;
   bool soundOn = true;
   bool musicOn = true;
+  bool tutorialDone = false;
 
   Future<void> load() async {
     _p = await SharedPreferences.getInstance();
@@ -43,6 +44,8 @@ class SaveData extends ChangeNotifier {
     gamesPlayed = _p.getInt('gamesPlayed') ?? 0;
     soundOn = _p.getBool('soundOn') ?? true;
     musicOn = _p.getBool('musicOn') ?? true;
+    // players who already played before the tutorial existed skip it
+    tutorialDone = _p.getBool('tutorialDone') ?? (gamesPlayed > 0);
 
     // Older versions used different character ids.
     owned.add('ali');
@@ -67,6 +70,7 @@ class SaveData extends ChangeNotifier {
     await _p.setInt('gamesPlayed', gamesPlayed);
     await _p.setBool('soundOn', soundOn);
     await _p.setBool('musicOn', musicOn);
+    await _p.setBool('tutorialDone', tutorialDone);
   }
 
   Character get character => characterById(skin);
@@ -102,6 +106,11 @@ class SaveData extends ChangeNotifier {
 
   void setSound(bool on) {
     soundOn = on;
+    _save();
+  }
+
+  void setTutorialDone(bool done) {
+    tutorialDone = done;
     _save();
   }
 

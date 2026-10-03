@@ -53,6 +53,8 @@ class _GameScreenState extends State<GameScreen>
       DeviceOrientation.landscapeRight,
     ]);
     _w.ability = s.character.ability;
+    _w.tutorial = !s.tutorialDone;
+    if (_w.tutorial) _hintTime = 0;
     _w.reset();
     _ticker = createTicker(_tick)..start();
     Audio.i.setMusicVolume(0.45);
@@ -120,6 +122,10 @@ class _GameScreenState extends State<GameScreen>
           break;
         case GameEvent.crack:
           Audio.i.play(Sfx.crack, volume: 0.9);
+          break;
+        case GameEvent.tutorialDone:
+          s.setTutorialDone(true);
+          Audio.i.play(Sfx.reward);
           break;
         case GameEvent.parentSwap:
           Audio.i.play(Sfx.dad, volume: 0.8);
@@ -212,6 +218,7 @@ class _GameScreenState extends State<GameScreen>
               ),
               SafeArea(child: _hud()),
               if (_hintTime > 0 && !_w.dead) _hint(),
+              if (_w.tutorial) _tutorialOverlay(),
               if (_paused) _pauseOverlay(),
               if (_w.dead) _gameOver(),
             ],
@@ -445,6 +452,63 @@ class _GameScreenState extends State<GameScreen>
             ]),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _tutorialOverlay() {
+    final frozen = _w.tutFreeze;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Stack(children: [
+          if (frozen) Container(color: const Color(0x552B1B3A)),
+          if (_w.tutText.isNotEmpty)
+            Positioned(
+              left: 20,
+              right: 20,
+              top: MediaQuery.of(context).padding.top + 150,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Panel(
+                    radius: 22,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    child: Text(_w.tutText,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: C.ink,
+                            height: 1.5)),
+                  ),
+                ),
+              ),
+            ),
+          if (frozen && _w.tutWantTap)
+            Align(
+              alignment: const Alignment(0, 0.35),
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(_w.tutStep),
+                tween: Tween(begin: 0.85, end: 1.1),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOut,
+                builder: (context, v, child) =>
+                    Transform.scale(scale: v, child: child),
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: C.white,
+                    shape: BoxShape.circle,
+                    boxShadow: kSoftShadow,
+                    border: Border.all(color: C.red, width: 4),
+                  ),
+                  child: const Icon(Icons.touch_app_rounded, size: 56, color: C.red),
+                ),
+              ),
+            ),
+          // skip button area is not needed: the tutorial is short (~25 s)
+        ]),
       ),
     );
   }

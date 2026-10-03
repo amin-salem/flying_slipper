@@ -17,6 +17,7 @@ enum GameEvent {
   kick,
   crack, // belt crack
   parentSwap,
+  tutorialDone,
 }
 
 /// Who is chasing right now.
@@ -308,6 +309,17 @@ class GameWorld {
   Rect get whipBox => Rect.fromLTRB(
       whipStartX, whipY - 9, max(whipStartX + 1, whipTipX), whipY + 9);
 
+  // ---- Tutorial (first run only) ----
+  /// Set to true before [reset] for a guided first run.
+  bool tutorial = false;
+  int tutStep = 0;
+  double _tutTimer = 0;
+  bool tutFreeze = false; // the world is paused to explain something
+  bool tutWantTap = false; // paused until the player taps
+  String tutText = '';
+  Hazard? _tutTarget;
+  Hazard? _lastThrown;
+
   // Spawning
   final List<Hazard> hazards = [];
   final List<CoinItem> coins = [];
@@ -351,7 +363,14 @@ class GameWorld {
     chaser = Parent.mom;
     _outgoing = Parent.mom;
     swapTimer = 0;
-    _nextSwap = 20; // Dad shows up after ~20 seconds
+    _nextSwap = tutorial ? 9999 : 20; // Dad shows up after ~20 seconds
+    tutStep = 0;
+    _tutTimer = 1.2;
+    tutFreeze = false;
+    tutWantTap = false;
+    tutText = tutorial ? 'یه کم صبر کن... بابا و مامان دنبالت هستن!' : '';
+    _tutTarget = null;
+    _lastThrown = null;
     windup = 0;
     release = 0;
     whipT = 0;
@@ -373,6 +392,15 @@ class GameWorld {
   void press() {
     holding = true;
     if (dead || dying > 0) return;
+    if (tutorial && tutFreeze) {
+      if (tutWantTap) {
+        tutFreeze = false;
+        tutWantTap = false;
+        tutText = '';
+        _doJump();
+      }
+      return; // taps are ignored while we explain "don't jump"
+    }
     if (onGround) {
       _doJump();
     } else if (ability.doubleJump && !_usedDouble) {
@@ -452,6 +480,16 @@ class GameWorld {
 
   void update(double realDt) {
     if (dead || size == Size.zero) return;
+    if (tutorial && tutFreeze) {
+      if (!tutWantTap) {
+        _tutTimer -= realDt;
+        if (_tutTimer <= 0) {
+          tutFreeze = false;
+          tutText = '';
+        }
+      }
+      return;
+    }
     // Slow motion (near miss / death)
     if (_slowmo > 0) _slowmo -= realDt;
     final dt = realDt * (dying > 0 ? 0.35 : (_slowmo > 0 ? 0.5 : 1.0));
@@ -483,7 +521,11 @@ class GameWorld {
 
     _updateKid(dt);
     _updateParents(dt);
-    _spawn(dt);
+    if (tutorial) {
+      _tutorialScript(dt);
+    } else {
+      _spawn(dt);
+    }
     _move(dt);
     _collide();
   }
@@ -575,7 +617,7 @@ class GameWorld {
       return;
     }
     _nextSwap -= dt;
-    if (_nextSwap <= 0 && windup <= 0 && whipT <= 0) {
+    if (!tutorial && _nextSwap <= 0 && windup <= 0 && whipT <= 0) {
       _outgoing = chaser;
       chaser = chaser == Parent.mom ? Parent.dad : Parent.mom;
       swapTimer = swapDur;
@@ -602,6 +644,7 @@ class GameWorld {
       _secondThrow -= dt;
       if (_secondThrow <= 0) _attack(ThrowKind.low);
     }
+    if (tutorial) return; // the tutorial script decides the attacks
     _throwTimer -= dt;
     if (_throwTimer <= 0) _startWindup();
   }
@@ -650,11 +693,13 @@ class GameWorld {
       case ThrowKind.low:
       case ThrowKind.twin:
         events.add(GameEvent.whoosh);
-        hazards.add(Hazard.slipper(ThrowKind.low, x0, floorY - 42, v, 0));
+        _lastThrown = Hazard.slipper(ThrowKind.low, x0, floorY - 42, v, 0);
+        hazards.add(_lastThrown!);
         break;
       case ThrowKind.high:
         events.add(GameEvent.whoosh);
-        hazards.add(Hazard.slipper(ThrowKind.high, x0, floorY - 116, v, 0));
+        _lastThrown = Hazard.slipper(ThrowKind.high, x0, floorY - 116, v, 0);
+        hazards.add(_lastThrown!);
         break;
       case ThrowKind.bounce:
         events.add(GameEvent.whoosh);
@@ -677,6 +722,109 @@ class GameWorld {
         whipT = 0.001;
         _whipHit = false;
         break;
+    }
+  }
+
+  void _forceAttack(ThrowKind kind, double windupSeconds) {
+    _nextThrow = kind;
+    _windupDur = windupSeconds;
+    windup = 0.001;
+    shout = momLines[rng.nextInt(momLines.length)];
+    shoutTimer = windupSeconds + 0.6;
+    events.add(GameEvent.windup);
+  }
+
+  void _freeze({required bool tap, required String text, double seconds = 0}) {
+    tutFreeze = true;
+    tutWantTap = tap;
+    tutText = text;
+    _tutTimer = seconds;
+  }
+
+  /// The guided first run: obstacle -> low slipper -> high slipper -> coins.
+  void _tutorialScript(double dt) {
+    switch (tutStep) {
+      case 0: // a moment to look around, then an obstacle
+        _tutTimer -= dt;
+        if (_tutTimer <= 0) {
+          _tutTarget = Hazard.obstacle(ObstacleKind.books, size.width + 50, floorY);
+          hazards.add(_tutTarget!);
+          tutText = 'یه مانع جلوته! وقتی رسید، بپر';
+          tutStep = 1;
+        }
+      case 1:
+        if (_tutTarget!.x - kidX < 125) {
+          _freeze(tap: true, text: 'حالا بزن تا بپری!');
+          tutStep = 2;
+        }
+      case 2:
+        if (_tutTarget!.x < kidX - 70 && onGround) {
+          tutText = 'آفرین!';
+          _tutTimer = 0.9;
+          tutStep = 3;
+        }
+      case 3:
+        _tutTimer -= dt;
+        if (_tutTimer <= 0) {
+          _forceAttack(ThrowKind.low, 1.5);
+          tutText = 'مامان دمپایی پرت می‌کنه!\nعلامت قرمز «بپر!» یعنی باید بپری';
+          tutStep = 4;
+        }
+      case 4:
+        final s4 = _lastThrown;
+        if (s4 != null && windup <= 0 && kidX - s4.x < 115) {
+          _freeze(tap: true, text: 'حالا بپر!');
+          tutStep = 5;
+        }
+      case 5:
+        final s5 = _lastThrown;
+        if ((s5 == null || s5.x > kidX + 60) && onGround) {
+          tutText = 'عالی بود!';
+          _tutTimer = 0.9;
+          tutStep = 6;
+        }
+      case 6:
+        _tutTimer -= dt;
+        if (_tutTimer <= 0) {
+          _lastThrown = null;
+          _forceAttack(ThrowKind.high, 1.5);
+          tutText = 'علامت فیروزه‌ای «نپر!» یعنی\nدمپایی از بالای سرت رد میشه';
+          tutStep = 7;
+        }
+      case 7:
+        final s7 = _lastThrown;
+        if (s7 != null && windup <= 0 && kidX - s7.x < 115) {
+          _freeze(tap: false, text: 'دست نزن! فقط نگاه کن...', seconds: 1.4);
+          tutStep = 8;
+        }
+      case 8:
+        final s8 = _lastThrown;
+        if (s8 == null || s8.x > kidX + 60) {
+          final x0 = size.width + 30;
+          for (int i = 0; i < 6; i++) {
+            coins.add(CoinItem(x0 + i * 36, floorY - 38));
+          }
+          tutText = 'سکه‌ها رو جمع کن!\nباهاشون شخصیت جدید بخر';
+          _tutTimer = 3.2;
+          tutStep = 9;
+        }
+      case 9:
+        _tutTimer -= dt;
+        if (_tutTimer <= 0) {
+          tutText = 'آفرین! حالا بازی واقعی شروع میشه\nمواظب بابا هم باش!';
+          _tutTimer = 2.4;
+          tutStep = 10;
+        }
+      case 10:
+        _tutTimer -= dt;
+        if (_tutTimer <= 0) {
+          tutorial = false;
+          tutText = '';
+          _throwTimer = 2.5;
+          _obstacleTimer = 1.0;
+          _nextSwap = 20;
+          events.add(GameEvent.tutorialDone);
+        }
     }
   }
 
@@ -837,6 +985,14 @@ class GameWorld {
           _burst(h.x, h.y - 30, 10, const Color(0xFFFFFFFF), 1);
           texts.add(FloatText('شوت!', kidX + 40, floorY - kidY - 120,
               const Color(0xFF26C6BE), size: 26));
+          continue;
+        }
+        if (tutorial) {
+          if (!h.passed) {
+            h.passed = true;
+            texts.add(FloatText('آخ! اشکال نداره، تمرینه', kidX, floorY - kidY - 130,
+                const Color(0xFFFF5A4E), size: 18));
+          }
           continue;
         }
         if (_useShield()) {

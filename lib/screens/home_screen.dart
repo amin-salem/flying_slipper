@@ -454,7 +454,21 @@ class _SettingsSheet extends StatelessWidget {
             if (v) await Audio.i.startMusic();
           }),
           const SizedBox(height: 8),
-          const Text('دمپایی پرنده · نسخه ۱٫۱', style: kSmall),
+          GameButton(
+            tone: Tone.white,
+            height: 46,
+            onTap: () {
+              s.setTutorialDone(false);
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.of(context).pop();
+              messenger.showSnackBar(const SnackBar(
+                  content: Text('بازی بعدی با آموزش شروع میشه',
+                      style: TextStyle(fontFamily: 'Vazirmatn'))));
+            },
+            child: const Text('آموزش رو دوباره ببینم', style: TextStyle(fontSize: 15)),
+          ),
+          const SizedBox(height: 8),
+          const Text('دمپایی پرنده · نسخه ۱٫۴', style: kSmall),
         ]),
       ),
     );
