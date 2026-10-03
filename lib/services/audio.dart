@@ -36,6 +36,22 @@ class Audio {
     Sfx.click: 2,
   };
 
+  /// Master levels: kept low so sounds stay gentle on phone speakers.
+  static const double sfxVolume = 0.8;
+  static const double musicVolume = 0.32;
+
+  /// The same sound is not restarted faster than this (stops harsh
+  /// machine-gun repeats, e.g. many coins or fast button taps).
+  static const _minGapMs = {
+    Sfx.coin: 45,
+    Sfx.click: 70,
+    Sfx.jump: 60,
+    Sfx.land: 60,
+    Sfx.whoosh: 80,
+    Sfx.bounce: 80,
+  };
+  final Map<Sfx, int> _lastPlayed = {};
+
   final Map<Sfx, List<AudioPlayer>> _pools = {};
   final Map<Sfx, int> _next = {};
   AudioPlayer? _music;
@@ -95,7 +111,7 @@ class Audio {
       try {
         await v.stop();
         await v.setAsset(path);
-        await v.setVolume(1.0);
+        await v.setVolume(0.9);
         v.play().catchError((_) {});
       } catch (_) {}
     }();
@@ -105,12 +121,16 @@ class Audio {
     if (!soundOn) return;
     final pool = _pools[s];
     if (pool == null || pool.isEmpty) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final last = _lastPlayed[s] ?? 0;
+    if (now - last < (_minGapMs[s] ?? 40)) return;
+    _lastPlayed[s] = now;
     final idx = _next[s]! % pool.length;
     _next[s] = idx + 1;
     final p = pool[idx];
     () async {
       try {
-        await p.setVolume(volume);
+        await p.setVolume((volume * sfxVolume).clamp(0.0, 1.0));
         await p.seek(Duration.zero);
         // play() finishes only when the sound ends, so don't wait for it.
         p.play().catchError((_) {});
@@ -125,7 +145,7 @@ class Audio {
       if (!_musicLoaded) {
         await _music!.setAsset('assets/music/chase.ogg');
         await _music!.setLoopMode(LoopMode.one);
-        await _music!.setVolume(0.45);
+        await _music!.setVolume(musicVolume);
         _musicLoaded = true;
       }
       _musicPlaying = true;

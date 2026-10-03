@@ -1,7 +1,7 @@
 name: flying_slipper
 description: "دمپایی پرنده - Flying Slipper game"
 publish_to: 'none'
-version: 1.7.0+9
+version: 1.7.1+10
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

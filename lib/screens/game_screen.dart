@@ -87,13 +87,13 @@ class _GameScreenState extends State<GameScreen>
     if (_w.tutorial) _hintTime = 0;
     _w.reset();
     _ticker = createTicker(_tick)..start();
-    Audio.i.setMusicVolume(0.45);
+    Audio.i.setMusicVolume(Audio.musicVolume);
   }
 
   @override
   void dispose() {
     _ticker.dispose();
-    Audio.i.setMusicVolume(0.45);
+    Audio.i.setMusicVolume(Audio.musicVolume);
     // Menus are portrait only.
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
@@ -299,7 +299,7 @@ class _GameScreenState extends State<GameScreen>
     final ok = s.vip ? true : await AdService.showRewarded(context);
     if (!ok || !mounted) return;
     Audio.i.play(Sfx.powerup);
-    Audio.i.setMusicVolume(0.45);
+    Audio.i.setMusicVolume(Audio.musicVolume);
     setState(() => _w.revive());
   }
 
@@ -314,7 +314,7 @@ class _GameScreenState extends State<GameScreen>
   Future<void> _retry() async {
     await AdService.maybeShowInterstitial(context);
     if (!mounted) return;
-    Audio.i.setMusicVolume(0.45);
+    Audio.i.setMusicVolume(Audio.musicVolume);
     setState(() {
       _w.ability = s.ability;
       _w.wordLetters = lettersOf(s.todayWord);

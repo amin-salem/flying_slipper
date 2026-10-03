@@ -1298,7 +1298,7 @@ class _PullDialogState extends State<_PullDialog>
       _lastStep = step;
       if (_a.value < 1) {
         setState(() => _shown = (_shown + 1) % _all.length);
-        Audio.i.play(Sfx.click);
+        Audio.i.play(Sfx.click, volume: 0.5);
       } else {
         setState(() {});
       }
