@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/characters.dart';
+import '../game/world.dart' show Ability;
 import 'missions.dart';
 
 /// One day's prize in the 7-day login calendar.
@@ -36,6 +37,7 @@ class SaveData extends ChangeNotifier {
   bool soundOn = true;
   bool musicOn = true;
   bool tutorialDone = false;
+  Map<String, int> powerLevels = {}; // character id -> 1..3
   String missionDay = '';
   List<int> missionProgress = [0, 0, 0];
   List<bool> missionClaimed = [false, false, false];
@@ -60,6 +62,10 @@ class SaveData extends ChangeNotifier {
     musicOn = _p.getBool('musicOn') ?? true;
     // players who already played before the tutorial existed skip it
     tutorialDone = _p.getBool('tutorialDone') ?? (gamesPlayed > 0);
+    powerLevels = {
+      for (final e in _p.getStringList('powerLevels') ?? const <String>[])
+        if (e.contains(':')) e.split(':')[0]: int.tryParse(e.split(':')[1]) ?? 1
+    };
     missionDay = _p.getString('missionDay') ?? '';
     final mp = _p.getStringList('missionProgress') ?? const ['0', '0', '0'];
     missionProgress = [for (final v in mp) int.tryParse(v) ?? 0];
@@ -93,6 +99,8 @@ class SaveData extends ChangeNotifier {
     await _p.setBool('soundOn', soundOn);
     await _p.setBool('musicOn', musicOn);
     await _p.setBool('tutorialDone', tutorialDone);
+    await _p.setStringList('powerLevels',
+        [for (final e in powerLevels.entries) '${e.key}:${e.value}']);
     await _p.setString('missionDay', missionDay);
     await _p.setStringList(
         'missionProgress', [for (final v in missionProgress) '$v']);
@@ -101,6 +109,21 @@ class SaveData extends ChangeNotifier {
   }
 
   Character get character => characterById(skin);
+
+  // ---- Power levels ----
+  int levelOf(String id) => powerLevels[id] ?? 1;
+
+  /// The selected character's power at its current level.
+  Ability get ability => character.abilityAt(levelOf(skin));
+
+  bool upgradePower(Character c) {
+    final lvl = levelOf(c.id);
+    if (!owned.contains(c.id) || !c.upgradable || lvl >= 3) return false;
+    if (!spend(kUpgradeCost[lvl])) return false;
+    powerLevels[c.id] = lvl + 1;
+    _save();
+    return true;
+  }
 
   bool get adsOff => noAds || vip;
 

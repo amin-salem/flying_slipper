@@ -34,21 +34,31 @@ enum ThrowKind { low, high, bounce, twin, whipLow, whipHigh, remote }
 /// Special power of a character (see characters.dart).
 class Ability {
   const Ability({
-    this.doubleJump = false,
+    this.airJumps = 0,
     this.warnBonus = 1.0,
     this.kickCooldown = 0,
     this.speedMul = 1.0,
     this.coinMul = 1,
     this.glide = false,
+    this.glideFall = 170,
     this.startShield = false,
+    this.shieldRegen = 0,
+    this.magnet = 60,
   });
-  final bool doubleJump; // jump again in the air
+  final int airJumps; // extra jumps in the air (1 = double jump)
   final double warnBonus; // longer warning before attacks
   final double kickCooldown; // seconds between automatic kicks (0 = none)
   final double speedMul; // game speed multiplier
   final int coinMul; // coins per coin
   final bool glide; // hold while falling to float
+  final double glideFall; // max falling speed while gliding
   final bool startShield; // begins every run with a pillow shield
+  final double shieldRegen; // seconds to get a new shield (0 = never)
+  final double magnet; // how far coins are pulled in
+
+  bool get isNone => this == const Ability() || (airJumps == 0 &&
+      warnBonus == 1.0 && kickCooldown == 0 && speedMul == 1.0 &&
+      coinMul == 1 && !glide && !startShield);
 }
 
 Size obstacleSize(ObstacleKind k) => switch (k) {
@@ -218,7 +228,8 @@ class GameWorld {
   bool holding = false;
   double _holdTime = 0;
   double _buffer = 0;
-  bool _usedDouble = false;
+  int _airJumpsUsed = 0;
+  double _shieldTimer = 0;
   bool gliding = false;
   double flip = 0; // 1..0 somersault after a double jump
   bool get onGround => kidY <= 0.01 && kidVy <= 0;
@@ -342,7 +353,8 @@ class GameWorld {
     holding = false;
     _holdTime = 0;
     _buffer = 0;
-    _usedDouble = false;
+    _airJumpsUsed = 0;
+    _shieldTimer = 0;
     gliding = false;
     flip = 0;
     squashX = squashY = 1;
@@ -409,8 +421,8 @@ class GameWorld {
     }
     if (onGround) {
       _doJump();
-    } else if (ability.doubleJump && !_usedDouble) {
-      _usedDouble = true;
+    } else if (_airJumpsUsed < ability.airJumps) {
+      _airJumpsUsed++;
       _doJump(air: true);
     } else {
       _buffer = bufferTime; // jump as soon as we land
@@ -525,6 +537,15 @@ class GameWorld {
     traveled += speed * dt;
     runPhase += dt * speed / 19;
     if (kickCd > 0) kickCd = max(0, kickCd - dt);
+    if (ability.shieldRegen > 0 && !shield) {
+      _shieldTimer += dt;
+      if (_shieldTimer >= ability.shieldRegen) {
+        _shieldTimer = 0;
+        activateShield();
+        texts.add(FloatText('سپر برگشت!', kidX, floorY - kidY - 140,
+            const Color(0xFF26C6BE), size: 18));
+      }
+    }
 
     _updateKid(dt);
     _updateParents(dt);
@@ -550,7 +571,7 @@ class GameWorld {
     } else if (ability.glide && holding && kidY > 20) {
       // hero: float down slowly with the cape
       gliding = true;
-      kidVy = max(kidVy - 700 * dt, -170);
+      kidVy = max(kidVy - 700 * dt, -ability.glideFall);
     } else {
       kidVy -= gravityDown * dt;
     }
@@ -559,7 +580,7 @@ class GameWorld {
       kidY = 0;
       if (wasAir) {
         kidVy = 0;
-        _usedDouble = false;
+        _airJumpsUsed = 0;
         flip = 0;
         squashX = 1.28;
         squashY = 0.76;
@@ -932,7 +953,7 @@ class GameWorld {
       c.x -= speed * dt;
       // small magnet when close
       final dx = kidX - c.x, dy = (floorY - kidY - 50) - c.y;
-      if (dx.abs() < 60 && dy.abs() < 70) {
+      if (dx.abs() < ability.magnet && dy.abs() < ability.magnet + 10) {
         c.x += dx * min(1.0, dt * 6);
         c.y += dy * min(1.0, dt * 6);
       }

@@ -95,7 +95,7 @@ const List<Character> kCharacters = [
     shoes: Color(0xFFFFFFFF),
     hair: Hair.pigtails,
     hairColor: Color(0xFF2A1A12),
-    ability: Ability(doubleJump: true),
+    ability: Ability(airJumps: 1),
     abilityName: 'پرش دوبل',
     abilityDesc: 'وسط هوا یه بار دیگه بپر!',
     abilityIcon: Icons.keyboard_double_arrow_up_rounded,
@@ -191,6 +191,79 @@ const List<Character> kCharacters = [
     abilityIcon: Icons.flight_rounded,
   ),
 ];
+
+/// Power levels: every kid's power can be upgraded twice with coins.
+const List<int> kUpgradeCost = [0, 2000, 5000]; // cost to reach level 1, 2, 3
+
+extension CharacterPower on Character {
+  bool get upgradable => !ability.isNone;
+
+  /// The power at [level] (1..3).
+  Ability abilityAt(int level) {
+    final l = level < 1 ? 1 : (level > 3 ? 3 : level);
+    switch (id) {
+      case 'sara':
+        return [
+          const Ability(airJumps: 1),
+          const Ability(airJumps: 2),
+          const Ability(airJumps: 2, startShield: true),
+        ][l - 1];
+      case 'omid':
+        return [
+          const Ability(warnBonus: 1.45),
+          const Ability(warnBonus: 1.75),
+          const Ability(warnBonus: 2.1),
+        ][l - 1];
+      case 'pajama':
+        return [
+          const Ability(speedMul: 0.85),
+          const Ability(speedMul: 0.8),
+          const Ability(speedMul: 0.75),
+        ][l - 1];
+      case 'football':
+        return [
+          const Ability(kickCooldown: 10),
+          const Ability(kickCooldown: 7),
+          const Ability(kickCooldown: 5),
+        ][l - 1];
+      case 'nowruz':
+        return [
+          const Ability(coinMul: 2),
+          const Ability(coinMul: 2, magnet: 120),
+          const Ability(coinMul: 3, magnet: 120),
+        ][l - 1];
+      case 'hero':
+        return [
+          const Ability(glide: true, startShield: true),
+          const Ability(glide: true, glideFall: 110, startShield: true),
+          const Ability(glide: true, glideFall: 110, startShield: true, shieldRegen: 25),
+        ][l - 1];
+      default:
+        return ability;
+    }
+  }
+
+  /// What the power does at [level] (1..3), in Persian.
+  String descAt(int level) {
+    final l = level < 1 ? 1 : (level > 3 ? 3 : level);
+    switch (id) {
+      case 'sara':
+        return ['وسط هوا یه بار دیگه بپر', 'پرش سه‌تایی!', 'پرش سه‌تایی + سپر اول بازی'][l - 1];
+      case 'omid':
+        return ['حمله‌ها رو ۴۵٪ زودتر می‌بینه', '۷۵٪ زودتر', 'دوبرابر زودتر!'][l - 1];
+      case 'pajama':
+        return ['همه چی ۱۵٪ آروم‌تره', '۲۰٪ آروم‌تر', '۲۵٪ آروم‌تر'][l - 1];
+      case 'football':
+        return ['هر ۱۰ ثانیه یه شوت', 'هر ۷ ثانیه یه شوت', 'هر ۵ ثانیه یه شوت!'][l - 1];
+      case 'nowruz':
+        return ['هر سکه دوتا حساب میشه', 'سکه دوبرابر + آهنربای سکه', 'سکه سه‌برابر + آهنربا!'][l - 1];
+      case 'hero':
+        return ['پرواز + سپر اول بازی', 'پرواز آروم‌تر + سپر', 'پرواز + سپر هر ۲۵ ثانیه برمی‌گرده'][l - 1];
+      default:
+        return abilityDesc;
+    }
+  }
+}
 
 Character characterById(String id) =>
     kCharacters.firstWhere((c) => c.id == id, orElse: () => kCharacters.first);

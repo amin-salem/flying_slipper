@@ -587,33 +587,55 @@ class _CharacterCardState extends State<_CharacterCard>
                 fontWeight: FontWeight.w900, fontSize: 15, color: C.ink)),
         const SizedBox(height: 4),
         // the character's special power: the reason to buy them
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
-          decoration: BoxDecoration(
-            color: ch.rarity.bg.last.withAlpha(150),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(ch.abilityIcon, size: 16, color: ch.rarity.color),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(ch.abilityName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: ch.rarity.color)),
-              ),
+        GestureDetector(
+          onTap: ch.upgradable ? () => _showPower(context, ch, widget.owned) : null,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+            decoration: BoxDecoration(
+              color: ch.rarity.bg.last.withAlpha(150),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(ch.abilityIcon, size: 16, color: ch.rarity.color),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(ch.abilityName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: ch.rarity.color)),
+                ),
+              ]),
+              Text(ch.descAt(s.levelOf(ch.id)),
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: kSmall.copyWith(fontSize: 11, height: 1.25)),
+              if (ch.upgradable) ...[
+                const SizedBox(height: 3),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  for (int l = 1; l <= 3; l++)
+                    Container(
+                      width: 14,
+                      height: 6,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      decoration: BoxDecoration(
+                        color: l <= s.levelOf(ch.id) ? ch.rarity.color : const Color(0x332B1B3A),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  if (widget.owned && s.levelOf(ch.id) < 3) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.upgrade_rounded, size: 16, color: C.greenDark),
+                  ],
+                ]),
+              ],
             ]),
-            Text(ch.abilityDesc,
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: kSmall.copyWith(fontSize: 11, height: 1.25)),
-          ]),
+          ),
         ),
         const SizedBox(height: 6),
         GameButton(
@@ -677,6 +699,87 @@ class _CharPreview extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CharPreview old) =>
       old.time != time || old.ch != ch || old.locked != locked || old.mood != mood;
+}
+
+/// Shows all 3 levels of a character's power, with an upgrade button.
+void _showPower(BuildContext context, Character ch, bool owned) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => ListenableBuilder(
+      listenable: SaveData.i,
+      builder: (ctx, _) {
+        final s = SaveData.i;
+        final lvl = s.levelOf(ch.id);
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+          decoration: BoxDecoration(
+            color: C.cream,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: kSoftShadow,
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(ch.abilityIcon, color: ch.rarity.color, size: 30),
+                const SizedBox(width: 8),
+                OutlinedTitle(ch.abilityName, size: 28, fill: ch.rarity.color),
+              ]),
+              Text(ch.name, style: kSmall.copyWith(fontSize: 13)),
+              const SizedBox(height: 14),
+              for (int l = 1; l <= 3; l++)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: l <= lvl ? ch.rarity.bg.last : C.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: l == lvl ? ch.rarity.color : const Color(0x22000000),
+                        width: l == lvl ? 2.5 : 1),
+                  ),
+                  child: Row(children: [
+                    Text('سطح ${fa(l)}',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900, color: ch.rarity.color)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(ch.descAt(l), style: kBody.copyWith(fontSize: 14))),
+                    if (l <= lvl)
+                      const Icon(Icons.check_circle_rounded, color: C.greenDark, size: 22),
+                  ]),
+                ),
+              const SizedBox(height: 8),
+              if (!owned)
+                Text('اول این شخصیت رو بخر', style: kSmall.copyWith(fontSize: 13))
+              else if (lvl >= 3)
+                const Text('حداکثر سطح!',
+                    style: TextStyle(fontWeight: FontWeight.w900, color: C.greenDark))
+              else
+                GameButton(
+                  tone: Tone.green,
+                  onTap: () {
+                    if (s.upgradePower(ch)) {
+                      Audio.i.play(Sfx.powerup);
+                    } else {
+                      _toast(ctx, 'سکه کافی نداری!');
+                    }
+                  },
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text('ارتقا به سطح ${fa(lvl + 1)}', style: const TextStyle(fontSize: 17)),
+                    const SizedBox(width: 10),
+                    const CoinIcon(size: 22),
+                    const SizedBox(width: 4),
+                    Text(fa(kUpgradeCost[lvl]), style: const TextStyle(fontSize: 17)),
+                  ]),
+                ),
+            ]),
+          ),
+        );
+      },
+    ),
+  );
 }
 
 // ---------------------------------------------------------------- Power-ups

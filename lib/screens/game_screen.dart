@@ -57,7 +57,7 @@ class _GameScreenState extends State<GameScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _w.ability = s.character.ability;
+    _w.ability = s.ability;
     _w.tutorial = !s.tutorialDone;
     if (_w.tutorial) _hintTime = 0;
     _w.reset();
@@ -201,7 +201,7 @@ class _GameScreenState extends State<GameScreen>
     if (!mounted) return;
     Audio.i.setMusicVolume(0.45);
     setState(() {
-      _w.ability = s.character.ability;
+      _w.ability = s.ability;
       _w.reset();
       _doubled = false;
       _record = false;
@@ -308,8 +308,8 @@ class _GameScreenState extends State<GameScreen>
   /// Small pill showing the character's power (and the kick charge).
   Widget _abilityBadge() {
     final ch = s.character;
-    if (ch.ability == const Ability()) return const SizedBox.shrink();
-    final kick = ch.ability.kickCooldown > 0;
+    if (!ch.upgradable) return const SizedBox.shrink();
+    final kick = _w.ability.kickCooldown > 0;
     final ready = _w.kickReady;
     return Container(
       height: 30,
