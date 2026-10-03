@@ -3,6 +3,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/characters.dart';
 
+/// One day's prize in the 7-day login calendar.
+class DailyReward {
+  const DailyReward(this.coins, {this.pillows = 0, this.grandmas = 0});
+  final int coins;
+  final int pillows;
+  final int grandmas;
+}
+
 /// Everything saved on the phone. No server needed.
 class SaveData extends ChangeNotifier {
   SaveData._();
@@ -20,6 +28,7 @@ class SaveData extends ChangeNotifier {
   Set<String> owned = {'ali'};
   String skin = 'ali';
   String lastDaily = '';
+  int loginDay = 0; // next calendar day to claim (0..6)
   String freeAdDay = '';
   int freeAdCount = 0;
   int gamesPlayed = 0;
@@ -39,6 +48,7 @@ class SaveData extends ChangeNotifier {
     owned = (_p.getStringList('owned') ?? ['ali']).toSet();
     skin = _p.getString('skin') ?? 'ali';
     lastDaily = _p.getString('lastDaily') ?? '';
+    loginDay = _p.getInt('loginDay') ?? 0;
     freeAdDay = _p.getString('freeAdDay') ?? '';
     freeAdCount = _p.getInt('freeAdCount') ?? 0;
     gamesPlayed = _p.getInt('gamesPlayed') ?? 0;
@@ -65,6 +75,7 @@ class SaveData extends ChangeNotifier {
     await _p.setStringList('owned', owned.toList());
     await _p.setString('skin', skin);
     await _p.setString('lastDaily', lastDaily);
+    await _p.setInt('loginDay', loginDay);
     await _p.setString('freeAdDay', freeAdDay);
     await _p.setInt('freeAdCount', freeAdCount);
     await _p.setInt('gamesPlayed', gamesPlayed);
@@ -119,16 +130,46 @@ class SaveData extends ChangeNotifier {
     _save();
   }
 
-  // ---- Daily reward ----
+  // ---- 7-day login calendar ----
+  static const List<DailyReward> calendar = [
+    DailyReward(100),
+    DailyReward(150),
+    DailyReward(200, pillows: 1),
+    DailyReward(300),
+    DailyReward(400, grandmas: 1),
+    DailyReward(500),
+    DailyReward(1000, pillows: 2, grandmas: 1),
+  ];
+
+  String get _yesterday {
+    final d = DateTime.now().subtract(const Duration(days: 1));
+    return '${d.year}-${d.month}-${d.day}';
+  }
+
   bool get canClaimDaily => lastDaily != _today;
 
-  int claimDaily() {
-    if (!canClaimDaily) return 0;
+  /// Today's box in the calendar (0..6). Missing a day starts again at day 1.
+  int get calendarToday {
+    if (!canClaimDaily) return (loginDay + 6) % 7;
+    if (lastDaily.isEmpty || lastDaily == _yesterday) return loginDay;
+    return 0;
+  }
+
+  /// True if the player missed a day and the streak restarted.
+  bool get streakBroken =>
+      canClaimDaily && lastDaily.isNotEmpty && lastDaily != _yesterday && loginDay != 0;
+
+  DailyReward? claimDaily() {
+    if (!canClaimDaily) return null;
+    final day = calendarToday;
+    final r = calendar[day];
+    coins += r.coins;
+    pillows += r.pillows;
+    grandmas += r.grandmas;
+    loginDay = (day + 1) % 7;
     lastDaily = _today;
-    const reward = 100;
-    coins += reward;
     _save();
-    return reward;
+    return r;
   }
 
   // ---- Free coins for watching ads (5 per day) ----

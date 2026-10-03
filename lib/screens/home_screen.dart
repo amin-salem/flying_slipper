@@ -22,6 +22,21 @@ class _HomeScreenState extends State<HomeScreen>
       AnimationController(vsync: this, duration: const Duration(seconds: 6))
         ..repeat();
 
+  static bool _calendarShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Open the login calendar automatically once per app start.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final s = SaveData.i;
+      if (!_calendarShown && s.canClaimDaily && s.tutorialDone && mounted) {
+        _calendarShown = true;
+        _claimDaily();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _anim.dispose();
@@ -39,39 +54,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _claimDaily() async {
-    final s = SaveData.i;
-    final got = s.claimDaily();
-    if (got > 0) Audio.i.play(Sfx.reward);
     await showDialog<void>(
       context: context,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => const Dialog(
         backgroundColor: Colors.transparent,
-        child: Panel(
-          radius: 28,
-          padding: const EdgeInsets.all(22),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            OutlinedTitle(got > 0 ? 'جایزه امروز!' : 'فردا بیا!',
-                size: 32, fill: C.gold),
-            const SizedBox(height: 14),
-            if (got > 0)
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const CoinIcon(size: 44),
-                const SizedBox(width: 10),
-                Text('+${fa(got)}',
-                    style: const TextStyle(
-                        fontSize: 36, fontWeight: FontWeight.w900)),
-              ])
-            else
-              const Text('جایزه امروز رو گرفتی. فردا دوباره سر بزن.',
-                  textAlign: TextAlign.center, style: kBody),
-            const SizedBox(height: 18),
-            GameButton(
-              tone: Tone.green,
-              onTap: () => Navigator.pop(ctx),
-              child: const Text('عالیه!', style: TextStyle(fontSize: 18)),
-            ),
-          ]),
-        ),
+        insetPadding: EdgeInsets.all(16),
+        child: _LoginCalendar(),
       ),
     );
   }
@@ -493,6 +481,135 @@ class _SettingsSheet extends StatelessWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+
+/// 7-day login calendar: come back every day for bigger prizes.
+class _LoginCalendar extends StatefulWidget {
+  const _LoginCalendar();
+
+  @override
+  State<_LoginCalendar> createState() => _LoginCalendarState();
+}
+
+class _LoginCalendarState extends State<_LoginCalendar> {
+  DailyReward? _got;
+
+  void _claim() {
+    final r = SaveData.i.claimDaily();
+    if (r == null) return;
+    Audio.i.play(Sfx.reward);
+    setState(() => _got = r);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SaveData.i;
+    final today = s.calendarToday;
+    final can = s.canClaimDaily;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Panel(
+        radius: 28,
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [C.cream, Color(0xFFFFE6C6)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const OutlinedTitle('جایزه هر روز', size: 30, fill: C.gold),
+          const SizedBox(height: 4),
+          Text(
+              s.streakBroken
+                  ? 'یه روز نیومدی، از روز اول شروع شد!'
+                  : 'هر روز بیا، جایزه‌ها بزرگ‌تر میشن',
+              style: kSmall.copyWith(fontSize: 13)),
+          const SizedBox(height: 14),
+          GridView.count(
+            crossAxisCount: 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 0.95,
+            children: [for (int i = 0; i < 6; i++) _tile(i, today, can)],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(height: 92, child: _tile(6, today, can)),
+          const SizedBox(height: 16),
+          if (_got != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text('+${fa(_got!.coins)} سکه گرفتی!',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w900, color: C.greenDark)),
+            ),
+          GameButton(
+            tone: can ? Tone.green : Tone.white,
+            onTap: can ? _claim : () => Navigator.of(context).pop(),
+            child: Text(can ? 'بگیرش!' : 'فردا برگرد',
+                style: const TextStyle(fontSize: 18)),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _tile(int i, int today, bool can) {
+    final r = SaveData.calendar[i];
+    final claimed = i < today || (i == today && !can);
+    final isToday = i == today && can;
+    final big = i == 6;
+    final extras = [
+      if (r.pillows > 0) '${fa(r.pillows)} بالش',
+      if (r.grandmas > 0) '${fa(r.grandmas)} مادربزرگ',
+    ].join(' + ');
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        gradient: isToday
+            ? const LinearGradient(colors: [C.gold, C.goldDark])
+            : (big
+                ? const LinearGradient(colors: [Color(0xFFEDE2FF), Color(0xFFD2BCFF)])
+                : null),
+        color: isToday || big ? null : (claimed ? const Color(0xFFE8F6EC) : C.white),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+            color: isToday ? C.redDark : const Color(0x22000000), width: isToday ? 3 : 1),
+        boxShadow: isToday ? kSoftShadow : null,
+      ),
+      child: Stack(children: [
+        Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('روز ${fa(i + 1)}',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800, color: C.inkSoft)),
+            const SizedBox(height: 2),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              CoinIcon(size: big ? 30 : 22),
+              const SizedBox(width: 4),
+              Text(fa(r.coins),
+                  style: TextStyle(
+                      fontSize: big ? 22 : 16, fontWeight: FontWeight.w900, color: C.ink)),
+            ]),
+            if (extras.isNotEmpty)
+              Text('+ $extras',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w800, color: C.purpleDark)),
+          ]),
+        ),
+        if (claimed)
+          const Positioned(
+            top: 0,
+            left: 0,
+            child: Icon(Icons.check_circle_rounded, color: C.greenDark, size: 22),
+          ),
+      ]),
     );
   }
 }
