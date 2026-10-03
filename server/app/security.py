@@ -2,7 +2,7 @@
 import hashlib
 import hmac
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import Depends, Header, HTTPException, status
@@ -40,7 +40,7 @@ def random_code(n: int = 6) -> str:
 
 def make_token(player_id: str, gen: int = 0) -> tuple[str, int]:
     s = get_settings()
-    exp = datetime.now(UTC) + timedelta(days=s.jwt_days)
+    exp = datetime.now(timezone.utc) + timedelta(days=s.jwt_days)
     token = jwt.encode({"sub": player_id, "gen": gen, "exp": exp}, s.jwt_secret, algorithm=_ALGO)
     return token, int(exp.timestamp())
 

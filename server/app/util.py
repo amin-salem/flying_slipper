@@ -1,7 +1,7 @@
 """Small helpers shared by the routers."""
 import re
 import secrets
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,11 +14,11 @@ def ts(dt: datetime | None) -> int | None:
     """UTC datetime (stored without tz) -> unix seconds."""
     if dt is None:
         return None
-    return int(dt.replace(tzinfo=UTC).timestamp())
+    return int(dt.replace(tzinfo=timezone.utc).timestamp())
 
 
 def from_ts(seconds: int) -> datetime:
-    return datetime.fromtimestamp(seconds, UTC).replace(tzinfo=None)
+    return datetime.fromtimestamp(seconds, timezone.utc).replace(tzinfo=None)
 
 
 async def unique_invite_code(session: AsyncSession) -> str:
