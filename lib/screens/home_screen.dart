@@ -168,6 +168,8 @@ class _HomeScreenState extends State<HomeScreen>
                   ]),
                   const SizedBox(height: 6),
                   _Title(anim: _anim),
+                  const SizedBox(height: 6),
+                  Center(child: _RankBadge(s: s)),
                   if (currentSeason() != Season.none)
                     Center(
                       child: Container(
@@ -914,4 +916,55 @@ class _HuntIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HuntIconPainter old) => old.t != t;
+}
+
+
+/// Rank title, score multiplier and progress to the next rank.
+class _RankBadge extends StatelessWidget {
+  const _RankBadge({required this.s});
+  final SaveData s;
+
+  @override
+  Widget build(BuildContext context) {
+    final next = s.nextRankXp;
+    final from = kRankXp[s.rank];
+    final progress = next == null ? 1.0 : ((s.xp - from) / (next - from)).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 5, 12, 6),
+      decoration: BoxDecoration(
+        color: const Color(0xEE2B1B3A),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: kSoftShadow,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [C.gold, C.goldDark]),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text('×${fa(s.scoreMultiplier)}',
+              style: const TextStyle(fontWeight: FontWeight.w900, color: C.ink, fontSize: 13)),
+        ),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(s.rankTitle,
+              style: const TextStyle(color: C.white, fontWeight: FontWeight.w900, fontSize: 13)),
+          const SizedBox(height: 2),
+          SizedBox(
+            width: 110,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 5,
+                backgroundColor: const Color(0x33FFFFFF),
+                color: C.gold,
+              ),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
 }

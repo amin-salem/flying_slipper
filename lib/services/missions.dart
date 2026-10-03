@@ -164,3 +164,29 @@ String huntRewardText(List<int> r) {
   if (r[4] > 0) parts.add('${_fa(r[4])} مادربزرگ');
   return parts.join(' + ');
 }
+
+
+// ---------------------------------------------------------------- ranks
+
+/// Ranks: earned with XP from missions, words, the weekly hunt and repairs.
+/// Each rank raises the score multiplier.
+const List<String> kRankTitles = [
+  'شیطون تازه‌کار',
+  'فراری کوچولو',
+  'جاخالی‌باز',
+  'دمپایی‌گریز',
+  'قهرمان کوچه',
+  'استاد فرار',
+  'کمربندگریز',
+  'افسانه محله',
+  'پادشاه شیطنت',
+];
+const List<int> kRankXp = [0, 3, 8, 15, 25, 40, 60, 85, 120];
+
+int rankForXp(int xp) {
+  int r = 0;
+  for (int i = 0; i < kRankXp.length; i++) {
+    if (xp >= kRankXp[i]) r = i;
+  }
+  return r;
+}

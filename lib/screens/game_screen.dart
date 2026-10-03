@@ -62,6 +62,7 @@ class _GameScreenState extends State<GameScreen>
     _w.houseShield = b.startShield;
   }
   bool _spun = false;
+  bool _bestScore = false;
   String _momLine = _gameOverLines.first;
 
   SaveData get s => SaveData.i;
@@ -77,6 +78,7 @@ class _GameScreenState extends State<GameScreen>
     ]);
     _w.ability = s.ability;
     _w.powerDurations = s.boostDurations;
+    _w.scoreMul = s.scoreMultiplier;
     _applyHouse();
     _w.wordLetters = lettersOf(s.todayWord);
     _w.wordIndex = s.todayWordProgress;
@@ -184,6 +186,7 @@ class _GameScreenState extends State<GameScreen>
     s.addCoins(_w.coinsThisRun - _committedCoins);
     _committedCoins = _w.coinsThisRun;
     _record = s.submitScore(_w.meters) || _record;
+    _bestScore = s.submitBestScore(_w.score) || _bestScore;
     _momLine = _gameOverLines[Random().nextInt(_gameOverLines.length)];
     // daily missions
     final done = s.recordRun(RunStats(
@@ -326,6 +329,7 @@ class _GameScreenState extends State<GameScreen>
       _piggyAdded = 0;
       _recBoxes = 0;
       _recTokens = 0;
+      _bestScore = false;
       _huntRewards.clear();
       _spun = false;
       _houseBonusCoins = 0;
@@ -410,6 +414,15 @@ class _GameScreenState extends State<GameScreen>
               const Spacer(),
               Column(children: [
                 OutlinedTitle(fa(_w.meters), size: 38),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC2B1B3A),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text('امتیاز ${fa(_w.score)}  ×${fa(_w.scoreMul)}',
+                      style: const TextStyle(color: C.gold, fontSize: 12, fontWeight: FontWeight.w900)),
+                ),
                 if (_w.wordLetters.isNotEmpty && !_w.tutorial) _wordStrip(),
                 const Text('متر',
                     style: TextStyle(
@@ -920,6 +933,24 @@ class _GameScreenState extends State<GameScreen>
             const SizedBox(width: 10),
             _stat('جاخالی', fa(_w.nearMisses), 'بار', Icons.bolt),
           ]),
+          const SizedBox(height: 12),
+          Panel(
+            radius: 18,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            color: C.ink,
+            child: Row(children: [
+              const Icon(Icons.star_rounded, color: C.gold),
+              const SizedBox(width: 6),
+              Text('امتیاز ${fa(_w.score)}',
+                  style: const TextStyle(color: C.white, fontSize: 18, fontWeight: FontWeight.w900)),
+              const Spacer(),
+              Text(_bestScore ? 'بهترین امتیاز!' : 'بهترین: ${fa(s.bestScore)}',
+                  style: TextStyle(
+                      color: _bestScore ? C.gold : const Color(0xFFE5D8F0),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800)),
+            ]),
+          ),
           const SizedBox(height: 18),
           if (!_w.usedContinue) ...[
             GameButton(

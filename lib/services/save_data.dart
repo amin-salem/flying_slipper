@@ -50,6 +50,8 @@ class SaveData extends ChangeNotifier {
   int mysteryBoxes = 0;
   Set<String> repairs = {}; // house repairs done
   int huntWeek = -1;
+  int xp = 0;
+  int bestScore = 0;
   int huntTokens = 0;
   String wordDay = '';
   int wordProgress = 0; // letters of today's word collected
@@ -88,6 +90,8 @@ class SaveData extends ChangeNotifier {
     mysteryBoxes = _p.getInt('mysteryBoxes') ?? 0;
     repairs = (_p.getStringList('repairs') ?? const <String>[]).toSet();
     huntWeek = _p.getInt('huntWeek') ?? -1;
+    xp = _p.getInt('xp') ?? 0;
+    bestScore = _p.getInt('bestScore') ?? 0;
     huntTokens = _p.getInt('huntTokens') ?? 0;
     wordDay = _p.getString('wordDay') ?? '';
     wordProgress = _p.getInt('wordProgress') ?? 0;
@@ -135,6 +139,8 @@ class SaveData extends ChangeNotifier {
     await _p.setInt('mysteryBoxes', mysteryBoxes);
     await _p.setStringList('repairs', repairs.toList());
     await _p.setInt('huntWeek', huntWeek);
+    await _p.setInt('xp', xp);
+    await _p.setInt('bestScore', bestScore);
     await _p.setInt('huntTokens', huntTokens);
     await _p.setString('wordDay', wordDay);
     await _p.setInt('wordProgress', wordProgress);
@@ -280,6 +286,29 @@ class SaveData extends ChangeNotifier {
     return r;
   }
 
+  // ---- Ranks & score ----
+  int get rank => rankForXp(xp);
+  String get rankTitle => kRankTitles[rank];
+  int get scoreMultiplier => rank + 1;
+
+  /// XP needed for the next rank (null at the top).
+  int? get nextRankXp => rank + 1 < kRankXp.length ? kRankXp[rank + 1] : null;
+
+  /// Returns true if this XP gave a new rank.
+  bool addXp(int n) {
+    final before = rank;
+    xp += n;
+    _save();
+    return rank > before;
+  }
+
+  bool submitBestScore(int score) {
+    if (score <= bestScore) return false;
+    bestScore = score;
+    _save();
+    return true;
+  }
+
   // ---- Weekly hunt ----
   int get thisWeek => weekNumber(DateTime.now());
   HuntToken get huntToken => tokenForWeek(thisWeek);
@@ -301,6 +330,7 @@ class SaveData extends ChangeNotifier {
     for (final r in kHuntTrack) {
       if (before < r[0] && huntTokens >= r[0]) {
         reached.add(r);
+        xp += 1;
         coins += r[1];
         mysteryBoxes += r[2];
         pillows += r[3];
@@ -316,6 +346,7 @@ class SaveData extends ChangeNotifier {
     if (repairs.contains(id)) return false;
     if (!spend(cost)) return false;
     repairs.add(id);
+    xp += 2;
     _save();
     return true;
   }
@@ -343,6 +374,7 @@ class SaveData extends ChangeNotifier {
     if (finished) {
       coins += kWordReward;
       mysteryBoxes += 1;
+      xp += 2;
     }
     _save();
     return finished;
@@ -457,6 +489,7 @@ class SaveData extends ChangeNotifier {
     if (missionClaimed[i] || missionProgress[i] < m[i].target) return false;
     missionClaimed[i] = true;
     coins += m[i].reward;
+    xp += 1;
     _save();
     return true;
   }

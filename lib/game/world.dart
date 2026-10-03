@@ -379,6 +379,12 @@ class GameWorld {
   int slippersDodged = 0; // slippers and remotes that flew past
   int beltsDodged = 0;
   int get meters => traveled ~/ 40;
+
+  /// Score multiplier from the player's rank (set by the screen).
+  int scoreMul = 1;
+
+  /// Run score: distance, coins and close dodges, times the multiplier.
+  int get score => (meters * 10 + coinsThisRun * 2 + nearMisses * 50) * scoreMul;
   int _lastRoom = 0;
   static const _roomNames = ['اتاق نشیمن', 'آشپزخونه', 'حیاط'];
 
