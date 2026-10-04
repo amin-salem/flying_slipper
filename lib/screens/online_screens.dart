@@ -176,6 +176,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     return Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         const Text('اتصال به سرور برقرار نشد', style: kBody),
+                        if (Api.i.lastError.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 6, 24, 0),
+                            child: Text(Api.i.lastError,
+                                textAlign: TextAlign.center,
+                                textDirection: TextDirection.ltr,
+                                style: const TextStyle(fontSize: 11, color: C.inkSoft)),
+                          ),
                         const SizedBox(height: 10),
                         GameButton(
                             tone: Tone.teal,

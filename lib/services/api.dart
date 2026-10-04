@@ -14,7 +14,7 @@ import 'save_data.dart';
 const String kApiUrl = String.fromEnvironment('API_URL', defaultValue: 'https://flyingslippers.liara.run');
 
 /// The app's build number (pubspec version after the "+"); used for forced updates.
-const int kAppBuild = int.fromEnvironment('APP_BUILD', defaultValue: 13);
+const int kAppBuild = int.fromEnvironment('APP_BUILD', defaultValue: 14);
 
 /// Settings downloaded from the server (prices, events, forced update...).
 class RemoteConfig {
@@ -124,6 +124,9 @@ class Api {
   String? _token;
   int _tokenExp = 0;
 
+  /// Why the last connection failed (shown on screen to help find problems).
+  String lastError = '';
+
   /// Finishes when the first connection attempt is done (success or not).
   Future<void>? started;
 
@@ -159,8 +162,10 @@ class Api {
       await refreshProfile();
       await _firstSync();
       await refreshInbox();
-    } catch (_) {
+      lastError = '';
+    } catch (e) {
       // no internet / server down: try again later
+      lastError = _describe(e);
     }
   }
 
@@ -227,6 +232,18 @@ class Api {
     await _p.setString('api_secret', _secret!);
     await _p.setString('api_token', _token!);
     await _p.setInt('api_token_exp', _tokenExp);
+  }
+
+  /// A short, readable reason for a connection problem.
+  static String _describe(Object e) {
+    final t = e.toString();
+    if (t.contains('Failed host lookup') || t.contains('SocketException')) {
+      return 'no internet / server not found ($kApiUrl). Release build? Check INTERNET permission.';
+    }
+    if (t.contains('TimeoutException')) return 'server did not answer in time ($kApiUrl)';
+    if (t.contains('HandshakeException') || t.contains('CERTIFICATE')) return 'HTTPS/SSL problem ($kApiUrl)';
+    if (t.contains('Cleartext') || t.contains('CLEARTEXT')) return 'http:// is blocked by Android, use https://';
+    return t.length > 160 ? t.substring(0, 160) : t;
   }
 
   // ---------------------------------------------------------------- http
@@ -396,11 +413,11 @@ class Api {
 
   /// If the first connection failed (offline at start), try again now
   /// (at most once a minute).
-  Future<bool> _reconnect() async {
+  Future<bool> _reconnect({bool force = false}) async {
     if (_ready) return true;
     if (!enabled) return false;
     final now = DateTime.now();
-    if (_lastTry != null && now.difference(_lastTry!).inSeconds < 60) return false;
+    if (!force && _lastTry != null && now.difference(_lastTry!).inSeconds < 60) return false;
     _lastTry = now;
     try {
       if (config == null) await loadConfig();
@@ -408,17 +425,21 @@ class Api {
       _ready = true;
       await refreshProfile();
       await _firstSync();
+      lastError = '';
       return true;
-    } catch (_) {
+    } catch (e) {
+      lastError = _describe(e);
       return false;
     }
   }
 
   Future<Leaderboard?> leaderboard(String period) async {
-    if (!await _reconnect()) return null;
+    // the player opened the screen or pressed "try again": don't wait
+    if (!await _reconnect(force: true)) return null;
     try {
       return Leaderboard(await _call('GET', '/v1/leaderboard?period=$period') as Map<String, dynamic>);
-    } catch (_) {
+    } catch (e) {
+      lastError = _describe(e);
       return null;
     }
   }
