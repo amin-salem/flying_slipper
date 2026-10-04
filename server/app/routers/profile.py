@@ -10,7 +10,7 @@ from ..db import get_session
 from ..models import InboxItem, Player, Purchase, Run, SaveSlot, utcnow
 from ..schemas import ProfileIn, ProfileOut, SaveIn, SaveOut, SavePutOut
 from ..security import current_player
-from ..accounts import mask_phone
+from ..accounts import mask_email, mask_phone
 from ..util import clean_nickname, ts
 
 router = APIRouter(prefix="/v1", tags=["profile"])
@@ -21,8 +21,8 @@ def _profile(p: Player) -> ProfileOut:
         player_id=p.id, nickname=p.nickname, character=p.character,
         invite_code=p.invite_code, referred=p.referred_by is not None,
         vip_until=ts(p.vip_until), created_at=ts(p.created_at) or 0,
-        phone=mask_phone(p.phone), username=p.username,
-        secured=bool(p.phone or p.username),
+        phone=mask_phone(p.phone), username=p.username, email=mask_email(p.email),
+        secured=bool(p.phone or p.username or p.email),
     )
 
 

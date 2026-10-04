@@ -15,8 +15,8 @@ from .. import accounts as acc
 from ..config import get_settings
 from ..db import get_session
 from ..models import OtpCode, Player, utcnow
-from ..schemas import (OtpIn, OtpOut, PasswordLoginIn, PhoneCodeIn, PhoneLoginIn, RegisterOut,
-                       SecureOut, UsernameIn)
+from ..schemas import (EmailIn, EmailLoginIn, OtpIn, OtpOut, PasswordLoginIn, PhoneCodeIn,
+                       PhoneLoginIn, RegisterOut, SecureOut, UsernameIn)
 from ..security import current_player, hash_secret, make_token, new_secret
 from ..services.sms import SmsError, send_code
 from .inbox import add_gift
@@ -163,6 +163,31 @@ async def set_username(body: UsernameIn, player: Player = Depends(current_player
     return SecureOut(profile=_profile(player), grants=grants)
 
 
+@router.post("/email", response_model=SecureOut)
+async def set_email(body: EmailIn, player: Player = Depends(current_player),
+                    session: AsyncSession = Depends(get_session)):
+    """Add email + password to this account (or change the password)."""
+    email = acc.normalize_email(body.email)
+    if email is None:
+        raise HTTPException(422, "bad_email")
+    if not acc.password_ok(body.password):
+        raise HTTPException(422, "bad_password")
+    if player.email and player.email != email:
+        raise HTTPException(409, "email_cant_change")
+    taken = await session.scalar(select(Player.id).where(Player.email == email))
+    if taken is not None and taken != player.id:
+        raise HTTPException(409, "email_taken")
+    player.email = email
+    player.password_hash = acc.hash_password(body.password)
+    grants = await _reward_once(session, player)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(409, "email_taken")
+    return SecureOut(profile=_profile(player), grants=grants)
+
+
 # ---------------------------------------------------------------- log in on a phone
 
 @router.post("/login/phone", response_model=RegisterOut)
@@ -181,6 +206,15 @@ async def login_phone(body: PhoneLoginIn, session: AsyncSession = Depends(get_se
 async def login_password(body: PasswordLoginIn, session: AsyncSession = Depends(get_session)):
     name = acc.normalize_username(body.username)
     player = await session.scalar(select(Player).where(Player.username == name)) if name else None
+    if player is None or not acc.check_password(body.password, player.password_hash):
+        raise HTTPException(401, "wrong_login")
+    return await _login_as(session, player, body.device_id)
+
+
+@router.post("/login/email", response_model=RegisterOut)
+async def login_email(body: EmailLoginIn, session: AsyncSession = Depends(get_session)):
+    email = acc.normalize_email(body.email)
+    player = await session.scalar(select(Player).where(Player.email == email)) if email else None
     if player is None or not acc.check_password(body.password, player.password_hash):
         raise HTTPException(401, "wrong_login")
     return await _login_as(session, player, body.device_id)

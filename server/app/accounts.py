@@ -63,3 +63,18 @@ def new_otp() -> str:
 
 def hash_otp(phone: str, code: str) -> str:
     return hashlib.sha256(f"{phone}:{code}".encode()).hexdigest()
+
+
+_EMAIL = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
+
+
+def normalize_email(raw: str) -> str | None:
+    e = (raw or "").strip().lower()
+    return e if len(e) <= 120 and _EMAIL.match(e) else None
+
+
+def mask_email(email: str | None) -> str | None:
+    if not email or "@" not in email:
+        return None
+    name, domain = email.split("@", 1)
+    return (name[:2] + "***@" + domain) if len(name) > 2 else (name[:1] + "***@" + domain)

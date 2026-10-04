@@ -54,7 +54,8 @@ class ProfileOut(BaseModel):
     created_at: int
     phone: str | None = None      # masked, e.g. 0912***4567
     username: str | None = None
-    secured: bool = False         # has a phone or username (can be recovered)
+    email: str | None = None      # masked, e.g. am***@gmail.com
+    secured: bool = False         # has an email, phone or username (can be recovered)
 
 
 class ProfileIn(BaseModel):
@@ -211,3 +212,12 @@ class PasswordLoginIn(UsernameIn):
 class SecureOut(BaseModel):
     profile: ProfileOut
     grants: list[dict] = []  # reward for securing the account (first time only)
+
+
+class EmailIn(BaseModel):
+    email: str = Field(min_length=5, max_length=120)
+    password: str = Field(min_length=6, max_length=64)
+
+
+class EmailLoginIn(EmailIn):
+    device_id: str = Field(min_length=4, max_length=128)

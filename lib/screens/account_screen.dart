@@ -7,7 +7,7 @@ import '../services/audio.dart';
 import '../services/save_data.dart';
 import '../theme.dart';
 
-/// Account page: secure this account (phone number / username + password)
+/// Account page: secure this account (email + password, phone when SMS works)
 /// or log in to an account from another phone.
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key, this.startWithLogin = false});
@@ -80,8 +80,8 @@ class _AccountScreenState extends State<AccountScreen> {
               const Text('حسابت امنه!', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
               if (api.phone != null)
                 Text('موبایل: ${api.phone}', textDirection: TextDirection.ltr, style: kSmall),
-              if (api.username != null)
-                Text('نام کاربری: ${api.username}', textDirection: TextDirection.ltr, style: kSmall),
+              if (api.email != null)
+                Text('ایمیل: ${api.email}', textDirection: TextDirection.ltr, style: kSmall),
               const Text('روی هر گوشی می‌تونی وارد حسابت بشی.', style: kSmall),
             ]),
           ),
@@ -244,7 +244,7 @@ class _SecurePanel extends StatefulWidget {
 }
 
 class _SecurePanelState extends State<_SecurePanel> {
-  final _user = TextEditingController(text: Api.i.username ?? '');
+  final _user = TextEditingController();
   final _pass = TextEditingController();
   bool _busy = false;
 
@@ -288,9 +288,9 @@ class _SecurePanelState extends State<_SecurePanel> {
     if (loginErr == null) Navigator.of(context).pop();
   }
 
-  Future<void> _saveUsername() async {
+  Future<void> _saveEmail() async {
     setState(() => _busy = true);
-    final (reward, err) = await Api.i.setUsername(_user.text.trim(), _pass.text);
+    final (reward, err) = await Api.i.setEmail(_user.text.trim(), _pass.text);
     if (!mounted) return;
     setState(() => _busy = false);
     if (err != null) {
@@ -304,48 +304,99 @@ class _SecurePanelState extends State<_SecurePanel> {
   @override
   Widget build(BuildContext context) {
     final api = Api.i;
+    final sms = api.config?.smsEnabled ?? false;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Panel(
         radius: 20,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _sectionTitle('شماره موبایل', 'برای بازیابی حساب روی هر گوشی (پیشنهاد ما)'),
-          if (api.phone != null)
-            Text('وصل شده: ${api.phone}', textDirection: TextDirection.ltr,
-                style: const TextStyle(fontWeight: FontWeight.w900, color: C.greenDark))
-          else
-            _PhoneCodeBox(button: 'تأیید', onVerified: _linkPhone),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      Panel(
-        radius: 20,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _sectionTitle('نام کاربری و رمز',
-              api.username == null ? 'وقتی پیامک نمی‌رسه هم می‌تونی وارد بشی' : 'برای عوض کردن رمز، رمز جدید رو بزن'),
-          TextField(
-            controller: _user,
-            enabled: api.username == null && !_busy,
-            textDirection: TextDirection.ltr,
-            decoration: _field('نام کاربری (انگلیسی)', icon: Icons.person_rounded),
-          ),
-          const SizedBox(height: 8),
+          _sectionTitle('ایمیل و رمز', api.email == null
+              ? 'با همین ایمیل و رمز روی هر گوشی وارد حسابت میشی'
+              : 'برای عوض کردن رمز، رمز جدید رو بزن'),
+          if (api.email != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text('ثبت شده: ${api.email}', textDirection: TextDirection.ltr,
+                  style: const TextStyle(fontWeight: FontWeight.w900, color: C.greenDark)),
+            )
+          else ...[
+            TextField(
+              controller: _user,
+              enabled: !_busy,
+              keyboardType: TextInputType.emailAddress,
+              textDirection: TextDirection.ltr,
+              decoration: _field('ایمیل', icon: Icons.email_rounded),
+            ),
+            const SizedBox(height: 8),
+          ],
           TextField(
             controller: _pass,
             obscureText: true,
             enabled: !_busy,
             textDirection: TextDirection.ltr,
-            decoration: _field(api.username == null ? 'رمز (حداقل ۶ حرف)' : 'رمز جدید', icon: Icons.lock_rounded),
+            decoration: _field(api.email == null ? 'رمز (حداقل ۶ حرف)' : 'رمز جدید', icon: Icons.lock_rounded),
           ),
           const SizedBox(height: 10),
           GameButton(
             tone: Tone.green,
             height: 48,
-            onTap: _busy ? null : _saveUsername,
-            child: Text(api.username == null ? 'ثبت' : 'عوض کردن رمز', style: const TextStyle(fontSize: 15)),
+            onTap: _busy
+                ? null
+                : () {
+                    if (api.email != null) _user.text = '';
+                    _saveEmailOrPassword();
+                  },
+            child: Text(api.email == null ? 'ثبت' : 'عوض کردن رمز', style: const TextStyle(fontSize: 15)),
           ),
         ]),
       ),
+      if (sms) ...[
+        const SizedBox(height: 12),
+        Panel(
+          radius: 20,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _sectionTitle('شماره موبایل', 'یه راه دیگه برای بازیابی حساب'),
+            if (api.phone != null)
+              Text('وصل شده: ${api.phone}', textDirection: TextDirection.ltr,
+                  style: const TextStyle(fontWeight: FontWeight.w900, color: C.greenDark))
+            else
+              _PhoneCodeBox(button: 'تأیید', onVerified: _linkPhone),
+          ]),
+        ),
+      ],
     ]);
+  }
+
+  /// First time: email + password. Later: only a new password for the saved email.
+  Future<void> _saveEmailOrPassword() async {
+    if (Api.i.email != null) {
+      // the server needs the full email; we only know the masked one, so the
+      // player types it once more
+      final full = await _askEmail();
+      if (full == null) return;
+      _user.text = full;
+    }
+    await _saveEmail();
+  }
+
+  Future<String?> _askEmail() async {
+    final c = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: C.cream,
+        title: const Text('ایمیلت رو بنویس', style: TextStyle(fontWeight: FontWeight.w900)),
+        content: TextField(
+          controller: c,
+          keyboardType: TextInputType.emailAddress,
+          textDirection: TextDirection.ltr,
+          decoration: InputDecoration(hintText: Api.i.email),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('تأیید')),
+        ],
+      ),
+    );
   }
 }
 
@@ -398,30 +449,24 @@ class _LoginPanelState extends State<_LoginPanel> {
   Future<void> _byPassword() async {
     if (!await _confirm()) return;
     setState(() => _busy = true);
-    final err = await Api.i.loginWithPassword(_user.text.trim(), _pass.text);
+    final err = await Api.i.loginWithEmail(_user.text.trim(), _pass.text);
     if (mounted) setState(() => _busy = false);
     _done(err);
   }
 
   @override
   Widget build(BuildContext context) {
+    final sms = Api.i.config?.smsEnabled ?? false;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Panel(
         radius: 20,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _sectionTitle('ورود با شماره موبایل'),
-          _PhoneCodeBox(button: 'ورود', onVerified: _byPhone),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      Panel(
-        radius: 20,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _sectionTitle('ورود با نام کاربری'),
+          _sectionTitle('ورود با ایمیل'),
           TextField(
             controller: _user,
+            keyboardType: TextInputType.emailAddress,
             textDirection: TextDirection.ltr,
-            decoration: _field('نام کاربری', icon: Icons.person_rounded),
+            decoration: _field('ایمیل', icon: Icons.email_rounded),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -439,9 +484,16 @@ class _LoginPanelState extends State<_LoginPanel> {
           ),
         ]),
       ),
-      const SizedBox(height: 10),
-      const Text('رمزت یادت رفته؟ با شماره موبایل وارد شو و از تب «امن کردن این حساب» رمز جدید بذار.',
-          style: kSmall, textAlign: TextAlign.center),
+      if (sms) ...[
+        const SizedBox(height: 12),
+        Panel(
+          radius: 20,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _sectionTitle('ورود با شماره موبایل'),
+            _PhoneCodeBox(button: 'ورود', onVerified: _byPhone),
+          ]),
+        ),
+      ],
     ]);
   }
 }

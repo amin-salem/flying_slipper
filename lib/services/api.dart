@@ -14,7 +14,7 @@ import 'save_data.dart';
 const String kApiUrl = String.fromEnvironment('API_URL', defaultValue: 'https://flyingslippers.liara.run');
 
 /// The app's build number (pubspec version after the "+"); used for forced updates.
-const int kAppBuild = int.fromEnvironment('APP_BUILD', defaultValue: 14);
+const int kAppBuild = int.fromEnvironment('APP_BUILD', defaultValue: 15);
 
 /// Settings downloaded from the server (prices, events, forced update...).
 class RemoteConfig {
@@ -27,6 +27,7 @@ class RemoteConfig {
   bool get maintenance => raw['maintenance'] == true;
   String get maintenanceMessage => '${raw['maintenance_message'] ?? ''}';
   bool get leaderboardEnabled => raw['leaderboard_enabled'] != false;
+  bool get smsEnabled => raw['sms_enabled'] == true;
   String? price(String productId) {
     final p = raw['prices'];
     return p is Map && p[productId] is String ? p[productId] as String : null;
@@ -136,6 +137,7 @@ class Api {
   bool referred = false;
   String? phone; // masked, e.g. 0912***4567
   String? username;
+  String? email; // masked, e.g. am***@gmail.com
   bool secured = false; // can be recovered on another phone
   int inboxCount = 0;
 
@@ -241,6 +243,8 @@ class Api {
       return 'no internet / server not found ($kApiUrl). Release build? Check INTERNET permission.';
     }
     if (t.contains('TimeoutException')) return 'server did not answer in time ($kApiUrl)';
+    if (e is FormatException) return 'server sent a non-JSON answer: it may be down or restarting';
+    if (e is ApiException) return 'server error ${e.status}: ${e.detail}';
     if (t.contains('HandshakeException') || t.contains('CERTIFICATE')) return 'HTTPS/SSL problem ($kApiUrl)';
     if (t.contains('Cleartext') || t.contains('CLEARTEXT')) return 'http:// is blocked by Android, use https://';
     return t.length > 160 ? t.substring(0, 160) : t;
@@ -294,6 +298,7 @@ class Api {
       referred = j['referred'] == true;
       phone = j['phone'] as String?;
       username = j['username'] as String?;
+      email = j['email'] as String?;
       secured = j['secured'] == true;
       final vip = j['vip_until'];
       if (vip is int && vip != SaveData.i.vipUntil) {
@@ -539,6 +544,12 @@ class Api {
 
   // ---------------------------------------------------------------- permanent account
 
+  /// "No connection" message with the technical reason (helps find problems).
+  String _offline(Object e) {
+    lastError = _describe(e);
+    return 'اتصال به سرور برقرار نیست\n($lastError)';
+  }
+
   static String _err(Object? detail) {
     final d = detail is Map ? detail['error'] : detail;
     return switch (d) {
@@ -555,7 +566,10 @@ class Api {
       'bad_password' => 'رمز باید حداقل ۶ حرف باشه',
       'username_taken' => 'این نام کاربری قبلاً گرفته شده',
       'username_cant_change' => 'نام کاربری رو نمی‌شه عوض کرد',
-      'wrong_login' => 'نام کاربری یا رمز اشتباهه',
+      'wrong_login' => 'ایمیل یا رمز اشتباهه',
+      'bad_email' => 'ایمیل درست نیست',
+      'email_taken' => 'این ایمیل قبلاً برای یه حساب دیگه ثبت شده',
+      'email_cant_change' => 'ایمیل این حساب رو نمی‌شه عوض کرد',
       'banned' => 'این حساب مسدود شده',
       'too_many_requests' => 'خیلی سریع امتحان کردی، کمی صبر کن',
       _ => 'خطا، دوباره امتحان کن',
@@ -564,7 +578,7 @@ class Api {
 
   /// Asks the server to send an SMS code. Returns (seconds to wait, dev code, error).
   Future<(int, String?, String?)> sendOtp(String phoneNumber) async {
-    if (!await _reconnect()) return (0, null, 'اتصال به سرور برقرار نیست');
+    if (!await _reconnect(force: true)) return (0, null, 'اتصال به سرور برقرار نیست\n($lastError)');
     try {
       final j = await _call('POST', '/v1/account/otp', auth: false, body: {'phone': phoneNumber})
           as Map<String, dynamic>;
@@ -572,8 +586,8 @@ class Api {
     } on ApiException catch (e) {
       final wait = e.detail is Map ? ((e.detail as Map)['retry_after'] as int? ?? 0) : 0;
       return (wait, null, _err(e.detail));
-    } catch (_) {
-      return (0, null, 'اتصال به سرور برقرار نیست');
+    } catch (e) {
+      return (0, null, _offline(e));
     }
   }
 
@@ -587,8 +601,8 @@ class Api {
       return (grants.isEmpty ? '' : SaveData.i.applyGrants(grants), null, false);
     } on ApiException catch (e) {
       return (null, _err(e.detail), e.detail == 'phone_taken');
-    } catch (_) {
-      return (null, 'اتصال به سرور برقرار نیست', false);
+    } catch (e) {
+      return (null, _offline(e), false);
     }
   }
 
@@ -602,10 +616,29 @@ class Api {
       return (grants.isEmpty ? '' : SaveData.i.applyGrants(grants), null);
     } on ApiException catch (e) {
       return (null, _err(e.detail));
-    } catch (_) {
-      return (null, 'اتصال به سرور برقرار نیست');
+    } catch (e) {
+      return (null, _offline(e));
     }
   }
+
+  /// Adds email + password to this account (or changes the password). Returns (reward text, error).
+  Future<(String?, String?)> setEmail(String mail, String password) async {
+    try {
+      final j = await _call('POST', '/v1/account/email', body: {'email': mail, 'password': password})
+          as Map<String, dynamic>;
+      _readProfile((j['profile'] as Map).cast<String, dynamic>());
+      final grants = (j['grants'] as List?) ?? const [];
+      return (grants.isEmpty ? '' : SaveData.i.applyGrants(grants), null);
+    } on ApiException catch (e) {
+      return (null, _err(e.detail));
+    } catch (e) {
+      return (null, _offline(e));
+    }
+  }
+
+  /// Logs in to an existing account with email + password.
+  Future<String?> loginWithEmail(String mail, String password) => _loginWith(
+      '/v1/account/login/email', {'email': mail, 'password': password});
 
   /// Logs in to an existing account with an SMS code (progress on this phone is replaced).
   Future<String?> loginWithPhone(String phoneNumber, String code) => _loginWith(
@@ -634,14 +667,15 @@ class Api {
       return null;
     } on ApiException catch (e) {
       return _err(e.detail);
-    } catch (_) {
-      return 'اتصال به سرور برقرار نیست';
+    } catch (e) {
+      return _offline(e);
     }
   }
 
   void _readProfile(Map<String, dynamic> j) {
     phone = j['phone'] as String?;
     username = j['username'] as String?;
+    email = j['email'] as String?;
     secured = j['secured'] == true;
     SaveData.i.refresh();
   }

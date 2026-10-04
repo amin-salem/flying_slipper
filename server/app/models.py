@@ -33,9 +33,10 @@ class Player(Base):
     referred_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
     invites_rewarded: Mapped[int] = mapped_column(Integer, default=0)
 
-    # Permanent account (optional): phone number (SMS code) and/or username + password
+    # Permanent account (optional): email + password and/or phone number (SMS code)
     phone: Mapped[str | None] = mapped_column(String(15), unique=True, nullable=True)
     username: Mapped[str | None] = mapped_column(String(24), unique=True, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
     secure_rewarded: Mapped[bool] = mapped_column(Boolean, default=False)
 

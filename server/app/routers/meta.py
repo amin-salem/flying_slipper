@@ -34,6 +34,9 @@ async def config(session: AsyncSession = Depends(get_session)):
     cfg["today"] = now.date().isoformat()
     cfg["weekday"] = now.isoweekday()  # same numbering as Dart (Mon=1..Sun=7)
     cfg["week"] = rules.week_number(now.date())
+    # phone (SMS) login is offered only when SMS really works (or in dev, where
+    # the code is shown in the app)
+    cfg["sms_enabled"] = s.sms_provider != "fake" or s.env == "dev"
     return cfg
 
 

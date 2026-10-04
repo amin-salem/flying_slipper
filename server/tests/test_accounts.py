@@ -89,3 +89,26 @@ async def test_username_password(client):
     ok = await client.post("/v1/account/login/password",
                            json={"username": "SHAITOON_1", "password": "newpass1", "device_id": "d2"})
     assert ok.status_code == 200 and ok.json()["player_id"] == p["player_id"]
+
+
+async def test_email_password(client):
+    p = await new_player(client, "mail-dev")
+    r = await client.post("/v1/account/email", json={"email": " Amin@Gmail.com ", "password": "secret1"},
+                          headers=p["headers"])
+    assert r.status_code == 200, r.text
+    assert r.json()["profile"]["email"] == "am***@gmail.com" and r.json()["profile"]["secured"]
+    bad = await client.post("/v1/account/email", json={"email": "not-an-email", "password": "secret1"},
+                            headers=p["headers"])
+    assert bad.status_code == 422
+    other = await new_player(client, "mail-dev-2")
+    taken = await client.post("/v1/account/email", json={"email": "amin@gmail.com", "password": "zzzzzz"},
+                              headers=other["headers"])
+    assert taken.status_code == 409
+    wrong = await client.post("/v1/account/login/email",
+                              json={"email": "amin@gmail.com", "password": "nope99", "device_id": "x1"})
+    assert wrong.status_code == 401
+    ok = await client.post("/v1/account/login/email",
+                           json={"email": "AMIN@gmail.com", "password": "secret1", "device_id": "x1"})
+    assert ok.status_code == 200 and ok.json()["player_id"] == p["player_id"]
+    cfg = (await client.get("/v1/config")).json()
+    assert cfg["sms_enabled"] is True  # dev + fake provider
